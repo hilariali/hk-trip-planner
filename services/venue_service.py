@@ -5,9 +5,13 @@ Handles venue database operations and accessibility filtering
 
 from typing import List, Optional
 import sqlite3
+import logging
 from models import Venue, VenueCategory, Location, AccessibilityInfo, DietaryOption, WeatherSuitability, SearchCriteria
 from database import get_db_connection
 import json
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 class VenueService:
     """Service for managing venue data and searches"""
@@ -18,6 +22,9 @@ class VenueService:
     
     def search_venues(self, criteria: SearchCriteria) -> List[Venue]:
         """Search venues based on criteria"""
+        logger.info("=== VENUE SERVICE: Searching venues ===")
+        logger.info(f"Search criteria: {criteria}")
+        
         with get_db_connection() as conn:
             cursor = conn.cursor()
             
@@ -29,39 +36,61 @@ class VenueService:
                 category_placeholders = ','.join(['?' for _ in criteria.categories])
                 query += f" AND category IN ({category_placeholders})"
                 params.extend([cat.value for cat in criteria.categories])
+                logger.info(f"Added category filter: {[cat.value for cat in criteria.categories]}")
             
             if criteria.max_cost:
                 query += " AND cost_min <= ?"
                 params.append(criteria.max_cost)
+                logger.info(f"Added cost filter: <= {criteria.max_cost}")
             
             if criteria.accessibility_required:
                 if 'wheelchair' in criteria.accessibility_required:
                     query += " AND wheelchair_accessible = 1"
+                    logger.info("Added wheelchair accessibility filter")
                 if 'elevator_only' in criteria.accessibility_required:
                     query += " AND has_elevator = 1"
+                    logger.info("Added elevator filter")
                 if 'avoid_stairs' in criteria.accessibility_required:
                     query += " AND step_free_access = 1"
+                    logger.info("Added step-free access filter")
             
             if criteria.dietary_required:
+                # Only apply dietary filters to restaurants
+                dietary_conditions = []
                 if 'soft_meals' in criteria.dietary_required:
-                    query += " AND soft_meals_available = 1"
+                    dietary_conditions.append("soft_meals_available = 1")
                 if 'vegetarian' in criteria.dietary_required:
-                    query += " AND vegetarian_options = 1"
+                    dietary_conditions.append("vegetarian_options = 1")
                 if 'halal' in criteria.dietary_required:
-                    query += " AND halal_options = 1"
+                    dietary_conditions.append("halal_options = 1")
+                
+                if dietary_conditions:
+                    dietary_filter = " OR ".join(dietary_conditions)
+                    query += f" AND (category != 'restaurant' OR ({dietary_filter}))"
+                    logger.info(f"Added dietary filter: category != 'restaurant' OR ({dietary_filter})")
             
             if criteria.weather_suitability:
                 query += " AND weather_suitability = ?"
                 params.append(criteria.weather_suitability.value)
+                logger.info(f"Added weather filter: {criteria.weather_suitability.value}")
             
             if criteria.district:
                 query += " AND district = ?"
                 params.append(criteria.district)
+                logger.info(f"Added district filter: {criteria.district}")
+            
+            logger.info(f"Final query: {query}")
+            logger.info(f"Query params: {params}")
             
             cursor.execute(query, params)
             rows = cursor.fetchall()
             
-            return [self._row_to_venue(row) for row in rows]
+            logger.info(f"Database returned {len(rows)} rows")
+            
+            venues = [self._row_to_venue(row) for row in rows]
+            logger.info(f"Converted to {len(venues)} venue objects")
+            
+            return venues
     
     def get_venue_by_id(self, venue_id: str) -> Optional[Venue]:
         """Get a specific venue by ID"""

@@ -4,6 +4,7 @@ AI-powered itinerary generation with accessibility focus
 """
 
 import random
+import logging
 from typing import List, Dict, Tuple
 from datetime import datetime, timedelta
 from models import (
@@ -12,6 +13,9 @@ from models import (
     WeatherSuitability
 )
 from services.venue_service import VenueService
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 class ItineraryEngine:
     """AI-powered engine for generating accessible itineraries"""
@@ -24,26 +28,40 @@ class ItineraryEngine:
     
     def generate_itinerary(self, preferences: UserPreferences, weather_data: WeatherData) -> Itinerary:
         """Generate complete itinerary based on preferences and weather"""
+        logger.info("=== ITINERARY ENGINE: Starting generation ===")
         
         # Get suitable venues based on preferences
+        logger.info("Getting suitable venues...")
         suitable_venues = self._get_suitable_venues(preferences, weather_data)
+        logger.info(f"Found {len(suitable_venues)} suitable venues")
         
         if not suitable_venues:
+            logger.error("No suitable venues found!")
             raise Exception("No suitable venues found for your requirements")
         
+        # Log venue details
+        for venue in suitable_venues:
+            logger.debug(f"Suitable venue: {venue.name} ({venue.category.value})")
+        
         # Generate day plans
+        logger.info(f"Generating {preferences.trip_duration} day plans...")
         day_plans = []
         used_venues = set()
         
         for day in range(1, preferences.trip_duration + 1):
+            logger.info(f"Generating day {day} plan...")
             day_plan = self._generate_day_plan(
                 day, preferences, weather_data, suitable_venues, used_venues
             )
+            logger.info(f"Day {day} plan: {len(day_plan.venues)} venues, cost: {day_plan.estimated_cost}")
             day_plans.append(day_plan)
         
         # Calculate costs and create itinerary
+        logger.info("Calculating total costs...")
         total_cost, cost_breakdown = self._calculate_total_cost(day_plans, preferences)
         accessibility_score = self._calculate_accessibility_score(day_plans, preferences)
+        
+        logger.info(f"Final itinerary: {len(day_plans)} days, total cost: {total_cost}, accessibility: {accessibility_score}")
         
         return Itinerary(
             day_plans=day_plans,
@@ -55,6 +73,7 @@ class ItineraryEngine:
     
     def _get_suitable_venues(self, preferences: UserPreferences, weather_data: WeatherData) -> List[Venue]:
         """Get venues that match user preferences and weather conditions"""
+        logger.info("Building search criteria...")
         
         # Build search criteria based on preferences
         criteria = SearchCriteria()
@@ -62,27 +81,38 @@ class ItineraryEngine:
         # Add accessibility requirements
         if preferences.requires_accessibility():
             criteria.accessibility_required = preferences.mobility_needs
+            logger.info(f"Accessibility requirements: {preferences.mobility_needs}")
         
         # Add dietary requirements
         if preferences.dietary_restrictions:
             criteria.dietary_required = preferences.dietary_restrictions
+            logger.info(f"Dietary requirements: {preferences.dietary_restrictions}")
         
         # Add budget constraints
         criteria.max_cost = preferences.budget_range[1]
+        logger.info(f"Max cost: {preferences.budget_range[1]}")
         
         # Weather-based filtering
         if not weather_data.is_suitable_for_outdoor:
             criteria.weather_suitability = WeatherSuitability.INDOOR
+            logger.info("Weather not suitable for outdoor - filtering for indoor venues")
         
         # Get all suitable venues
+        logger.info("Searching venues with criteria...")
         venues = self.venue_service.search_venues(criteria)
+        logger.info(f"Initial venue search returned {len(venues)} venues")
         
         # Apply additional filtering
+        logger.info("Applying additional filtering...")
         filtered_venues = []
         for venue in venues:
             if self._is_venue_suitable(venue, preferences, weather_data):
                 filtered_venues.append(venue)
+                logger.debug(f"Venue passed filter: {venue.name}")
+            else:
+                logger.debug(f"Venue filtered out: {venue.name}")
         
+        logger.info(f"Final filtered venues: {len(filtered_venues)}")
         return filtered_venues
     
     def _is_venue_suitable(self, venue: Venue, preferences: UserPreferences, weather_data: WeatherData) -> bool:

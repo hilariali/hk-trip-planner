@@ -10,12 +10,31 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, asdict
 from typing import List, Dict, Tuple, Optional
 import json
+import logging
 
 # Import our custom modules
 from models import Venue, UserPreferences, Itinerary, AccessibilityInfo, DayPlan
 from services.venue_service import VenueService
 from services.weather_service import WeatherService
 from services.itinerary_engine import ItineraryEngine
+
+# Configure logging with in-memory handler for Streamlit
+import io
+import sys
+
+# Create a string buffer to capture logs
+log_buffer = io.StringIO()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG, 
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),  # Console output
+        logging.StreamHandler(log_buffer)   # Buffer for Streamlit
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Page configuration
 st.set_page_config(
@@ -51,13 +70,75 @@ def main():
         
         with col1:
             if st.button("Generate Itinerary", type="primary", use_container_width=True):
+                # Clear previous logs
+                log_buffer.seek(0)
+                log_buffer.truncate(0)
+                
+                st.info("🔍 Debug: Generate button clicked!")
+                logger.info("Generate Itinerary button clicked")
+                
+                # Create status container
+                status_container = st.empty()
+                
                 with st.spinner("Creating your accessible Hong Kong itinerary..."):
+                    status_container.info("🔍 Step 1: Validating user preferences...")
+                    logger.info(f"User preferences: {user_preferences}")
+                    
+                    status_container.info("🔍 Step 2: Getting weather data...")
+                    
+                    status_container.info("🔍 Step 3: Searching for suitable venues...")
+                    
+                    status_container.info("🔍 Step 4: Generating itinerary...")
                     itinerary = generate_itinerary(user_preferences)
+                    
                     if itinerary:
+                        status_container.success("✅ Itinerary generated successfully!")
+                        logger.info("Displaying itinerary")
                         display_itinerary(itinerary)
+                    else:
+                        status_container.error("❌ No itinerary was generated!")
+                        logger.error("No itinerary returned from generate_itinerary")
+                        
+                        # Show troubleshooting info
+                        st.error("**Troubleshooting:**")
+                        st.write("- Check if your preferences are too restrictive")
+                        st.write("- Try reducing accessibility requirements")
+                        st.write("- Increase your budget range")
+                        st.write("- Check the debug panel below for more details")
         
         with col2:
             st.info("💡 **Accessibility Focus**\n\nAll recommendations include:\n- Elevator/stair information\n- Accessible toilets\n- Soft meal options\n- Rest areas\n- Budget-friendly options")
+            
+            # Debug panel
+            with st.expander("🔍 Debug Information", expanded=False):
+                if st.button("Test Database Connection"):
+                    from database import get_venue_count
+                    count = get_venue_count()
+                    st.success(f"✅ Database connected! Found {count} venues")
+                
+                if st.button("Test Services"):
+                    try:
+                        # Test venue service
+                        all_venues = st.session_state.venue_service.get_all_venues()
+                        st.success(f"✅ Venue Service: {len(all_venues)} venues loaded")
+                        
+                        # Test weather service
+                        weather = st.session_state.weather_service.get_current_weather()
+                        st.success(f"✅ Weather Service: {weather.temperature}°C, {weather.weather_description}")
+                        
+                        # Test itinerary engine
+                        st.success("✅ Itinerary Engine: Ready")
+                        
+                    except Exception as e:
+                        st.error(f"❌ Service test failed: {str(e)}")
+                
+                # Show logs
+                if st.button("Show Recent Logs"):
+                    log_contents = log_buffer.getvalue()
+                    if log_contents:
+                        st.text_area("Recent Logs", log_contents, height=200)
+                    else:
+                        st.info("No logs captured yet. Try generating an itinerary first.")
 
 def collect_user_preferences() -> Optional[UserPreferences]:
     """Collect user preferences through Streamlit form"""
@@ -125,16 +206,29 @@ def collect_user_preferences() -> Optional[UserPreferences]:
 def generate_itinerary(preferences: UserPreferences) -> Optional[Itinerary]:
     """Generate itinerary based on user preferences"""
     try:
+        logger.info("=== STARTING ITINERARY GENERATION ===")
+        logger.info(f"User preferences: {preferences}")
+        
         # Get current weather
+        logger.info("Getting weather data...")
         weather_data = st.session_state.weather_service.get_current_weather()
+        logger.info(f"Weather data: {weather_data}")
         
         # Generate itinerary using AI engine
+        logger.info("Calling itinerary engine...")
         itinerary = st.session_state.itinerary_engine.generate_itinerary(
             preferences, weather_data
         )
         
+        if itinerary:
+            logger.info(f"Successfully generated itinerary with {len(itinerary.day_plans)} days")
+            logger.info(f"Total cost: {itinerary.total_cost}")
+        else:
+            logger.warning("Itinerary generation returned None")
+        
         return itinerary
     except Exception as e:
+        logger.error(f"Error generating itinerary: {str(e)}", exc_info=True)
         st.error(f"Error generating itinerary: {str(e)}")
         return None
 
