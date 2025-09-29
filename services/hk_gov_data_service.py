@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from models import Venue, VenueCategory, Location, AccessibilityInfo, DietaryOption, WeatherSuitability
 
 # Configure logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('services.hk_gov_data_service')
 
 class HKGovDataService:
     """Service for fetching Hong Kong government open data"""
@@ -18,10 +18,14 @@ class HKGovDataService:
     def __init__(self):
         """Initialize HK government data service"""
         self.base_url = "https://data.gov.hk"
-        self.timeout = 15
+        self.timeout = 5  # Reduced timeout to fail faster
+        self._api_available = True  # Track if APIs are working
     
     def get_major_attractions(self) -> List[Dict]:
         """Get major attractions from HK Tourism Board"""
+        if not self._api_available:
+            return []  # Skip if APIs are known to be down
+            
         try:
             # Major attractions API
             url = "https://www.discover.gov.hk/opendata/attractions.json"
@@ -30,17 +34,24 @@ class HKGovDataService:
             if response.status_code == 200:
                 data = response.json()
                 logger.info(f"Retrieved {len(data)} major attractions from HK Tourism Board")
+                self._api_available = True
                 return self._process_attractions_data(data)
             else:
+                if response.status_code == 404:
+                    self._api_available = False  # Mark as unavailable
                 logger.warning(f"Attractions API returned status {response.status_code}")
                 return []
                 
         except Exception as e:
+            self._api_available = False  # Mark as unavailable on network errors
             logger.warning(f"Could not fetch attractions data: {str(e)}")
             return []
     
     def get_hktb_events(self) -> List[Dict]:
         """Get events organized by Hong Kong Tourism Board"""
+        if not self._api_available:
+            return []  # Skip if APIs are known to be down
+            
         try:
             # HKTB events API
             url = "https://data.gov.hk/en-data/api/get?id=hk-cstb-cstb_tc-tc-hktb-events&format=json"
@@ -51,7 +62,10 @@ class HKGovDataService:
                 logger.info(f"Retrieved {len(data)} HKTB events")
                 return self._process_events_data(data)
             else:
-                logger.warning(f"Events API returned status {response.status_code}")
+                if response.status_code == 404:
+                    logger.info("Events API not available (404) - using local data only")
+                else:
+                    logger.warning(f"Events API returned status {response.status_code}")
                 return []
                 
         except Exception as e:
@@ -98,6 +112,9 @@ class HKGovDataService:
     
     def get_accessible_facilities(self) -> List[Dict]:
         """Get accessible facilities from Hong Kong Rehabilitation Society"""
+        if not self._api_available:
+            return []  # Skip if APIs are known to be down
+            
         try:
             # Accessible facilities API
             url = "https://data.gov.hk/en-data/api/get?id=rehabsociety-access-accessibile-facilities&format=json"
@@ -108,7 +125,10 @@ class HKGovDataService:
                 logger.info(f"Retrieved {len(data)} accessible facilities")
                 return self._process_accessibility_data(data)
             else:
-                logger.warning(f"Accessibility API returned status {response.status_code}")
+                if response.status_code == 404:
+                    logger.info("Accessibility API not available (404) - using local data only")
+                else:
+                    logger.warning(f"Accessibility API returned status {response.status_code}")
                 return []
                 
         except Exception as e:

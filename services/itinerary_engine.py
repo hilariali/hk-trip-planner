@@ -16,7 +16,7 @@ from services.venue_service import VenueService
 # Lazy import to avoid circular dependencies
 
 # Configure logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('services.itinerary_engine')
 
 class ItineraryEngine:
     """AI-powered engine for generating accessible itineraries"""

@@ -11,7 +11,7 @@ from typing import List, Optional
 from models import WeatherData
 
 # Configure logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('services.weather_service')
 
 class WeatherService:
     """Service for fetching Hong Kong weather data"""

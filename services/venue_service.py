@@ -12,7 +12,7 @@ from database import get_db_connection
 import json
 
 # Configure logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('services.venue_service')
 
 class VenueService:
     """Service for managing venue data and searches"""
@@ -227,11 +227,11 @@ class VenueService:
         try:
             from datetime import datetime, timedelta
             
-            # Check if we need to refresh cache (refresh every hour)
+            # Check if we need to refresh cache (refresh every 6 hours to reduce API calls)
             now = datetime.now()
             if (self._gov_data_cache is None or 
                 self._last_update is None or 
-                now - self._last_update > timedelta(hours=1)):
+                now - self._last_update > timedelta(hours=6)):
                 
                 logger.info("Refreshing government venue data...")
                 self._refresh_government_data()
@@ -250,29 +250,34 @@ class VenueService:
             
             hk_gov_service = self._get_hk_gov_service()
             if hk_gov_service:
-                # Get major attractions
+                # Get major attractions (limit API calls)
                 attractions = hk_gov_service.get_major_attractions()
-                for attraction_data in attractions[:20]:  # Limit to avoid overwhelming
+                for attraction_data in attractions[:10]:  # Reduced limit
                     venue = hk_gov_service.convert_to_venue(attraction_data)
                     if venue:
                         gov_venues.append(venue)
                 
-                # Get HKTB events (as temporary attractions)
-                events = hk_gov_service.get_hktb_events()
-                for event_data in events[:10]:  # Limit current events
-                    venue = hk_gov_service.convert_to_venue(event_data)
-                    if venue:
-                        gov_venues.append(venue)
-                
-                # Get accessible facilities
-                facilities = hk_gov_service.get_accessible_facilities()
-                for facility_data in facilities[:15]:  # Limit facilities
-                    venue = hk_gov_service.convert_to_venue(facility_data)
-                    if venue:
-                        gov_venues.append(venue)
+                # Only try events and facilities if attractions worked
+                if attractions:
+                    # Get HKTB events (as temporary attractions)
+                    events = hk_gov_service.get_hktb_events()
+                    for event_data in events[:5]:  # Reduced limit
+                        venue = hk_gov_service.convert_to_venue(event_data)
+                        if venue:
+                            gov_venues.append(venue)
+                    
+                    # Get accessible facilities
+                    facilities = hk_gov_service.get_accessible_facilities()
+                    for facility_data in facilities[:5]:  # Reduced limit
+                        venue = hk_gov_service.convert_to_venue(facility_data)
+                        if venue:
+                            gov_venues.append(venue)
             
             self._gov_data_cache = gov_venues
-            logger.info(f"Cached {len(gov_venues)} government venues")
+            if gov_venues:
+                logger.info(f"Cached {len(gov_venues)} government venues")
+            else:
+                logger.info("No government venues available - using local database only")
             
         except Exception as e:
             logger.warning(f"Error refreshing government data: {str(e)}")

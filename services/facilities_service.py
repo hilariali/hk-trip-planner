@@ -9,7 +9,7 @@ from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 
 # Configure logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('services.facilities_service')
 
 @dataclass
 class PublicFacility:
