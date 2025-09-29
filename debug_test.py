@@ -12,7 +12,7 @@ from database import init_database, seed_sample_data, get_venue_count
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('debug_test')
 
 def test_itinerary_generation():
     """Test the itinerary generation process"""

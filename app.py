@@ -52,7 +52,7 @@ else:
         ]
     )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('app')
 
 # Only log in development
 if not is_cloud:
@@ -123,16 +123,15 @@ def main():
             
         logger.info("All services initialized successfully")
         
-        # Test if government APIs are available
+        # Test if government APIs are available (do this quietly)
         try:
             test_venues = st.session_state.venue_service.get_all_venues()
             if len(test_venues) > 6:  # More than just local venues
-                st.success("✅ Enhanced with Hong Kong Government data")
+                logger.info("Government APIs are working")
             else:
-                st.info("ℹ️ Running with local venue database")
+                logger.info("Using local venue database only")
         except Exception as api_e:
             logger.warning(f"Government APIs not available: {api_e}")
-            st.info("ℹ️ Running with local venue database")
         
     except Exception as e:
         logger.error(f"Service initialization failed: {str(e)}", exc_info=True)
@@ -213,7 +212,7 @@ def main():
                                     st.error("❌ Still no results. Please contact support.")
         
         with col2:
-            st.info("💡 **Enhanced with HK Gov Data**\n\nNow includes:\n- Official HK Tourism Board attractions\n- Real-time weather from HK Observatory\n- MTR accessibility information\n- Public toilet locations\n- Licensed restaurant data\n- Accessibility facilities")
+            st.info("💡 **Accessibility Focus**\n\nAll recommendations include:\n- Elevator/stair information\n- Accessible toilets\n- Soft meal options\n- Rest areas\n- Budget-friendly options\n- Real-time weather data")
             
             # Tips for better results
             with st.expander("💡 Tips for Better Results"):

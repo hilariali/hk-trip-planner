@@ -16,7 +16,7 @@ from services.weather_service import WeatherService
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('test_gov_apis')
 
 def test_government_apis():
     """Test all government API integrations"""
