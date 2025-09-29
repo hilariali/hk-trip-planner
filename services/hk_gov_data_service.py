@@ -20,6 +20,8 @@ class HKGovDataService:
         self.base_url = "https://data.gov.hk"
         self.timeout = 5  # Reduced timeout to fail faster
         self._api_available = True  # Track if APIs are working
+        self.version = "2025-09-29-v2"  # Version identifier for debugging
+        logger.info(f"HKGovDataService initialized - Version: {self.version}")
     
     def get_major_attractions(self) -> List[Dict]:
         """Get major attractions from HK Tourism Board CSV"""
@@ -27,8 +29,9 @@ class HKGovDataService:
             return []  # Skip if APIs are known to be down
             
         try:
-            # Use official HK Tourism Board CSV endpoint
+            # Use official HK Tourism Board CSV endpoint (Updated 2025-09-29)
             url = "https://www.tourism.gov.hk/datagovhk/major_attractions/major_attractions_info_en.csv"
+            logger.info(f"Fetching attractions from NEW CSV endpoint: {url}")
             response = requests.get(url, timeout=10)
             
             if response.status_code == 200:
@@ -52,7 +55,8 @@ class HKGovDataService:
         except Exception as e:
             self._api_available = False  # Mark as unavailable on network errors
             logger.warning(f"Could not fetch attractions CSV data: {str(e)}")
-            return []
+            logger.info("Falling back to mock attractions data for user experience")
+            return self._get_fallback_attractions()
     
     def get_hktb_events(self) -> List[Dict]:
         """Get events organized by Hong Kong Tourism Board"""
@@ -581,4 +585,57 @@ class HKGovDataService:
             elem = element.find(tag_name)
             return elem.get(attr_name) if elem is not None else ''
         except:
-            return ''
+            return ''    
+
+    def _get_fallback_attractions(self) -> List[Dict]:
+        """Provide fallback attraction data when APIs are unavailable"""
+        return [
+            {
+                'id': 'fallback_1',
+                'name': 'Victoria Peak',
+                'category': 'attraction',
+                'description': 'Hong Kong\'s most popular tourist destination with panoramic city views',
+                'district': 'Central and Western',
+                'address': 'The Peak, Hong Kong',
+                'latitude': 22.2711,
+                'longitude': 114.1489,
+                'accessibility_features': {
+                    'wheelchair_accessible': True,
+                    'has_lift': True,
+                    'accessible_toilet': True
+                },
+                'source': 'fallback_data'
+            },
+            {
+                'id': 'fallback_2', 
+                'name': 'Star Ferry Pier',
+                'category': 'attraction',
+                'description': 'Historic ferry service connecting Hong Kong Island and Kowloon',
+                'district': 'Tsim Sha Tsui',
+                'address': 'Tsim Sha Tsui Promenade, Kowloon',
+                'latitude': 22.2940,
+                'longitude': 114.1685,
+                'accessibility_features': {
+                    'wheelchair_accessible': True,
+                    'has_lift': False,
+                    'accessible_toilet': True
+                },
+                'source': 'fallback_data'
+            },
+            {
+                'id': 'fallback_3',
+                'name': 'Hong Kong Museum of History',
+                'category': 'museum',
+                'description': 'Comprehensive museum showcasing Hong Kong\'s rich cultural heritage',
+                'district': 'Tsim Sha Tsui East',
+                'address': '100 Chatham Road South, Kowloon',
+                'latitude': 22.3010,
+                'longitude': 114.1722,
+                'accessibility_features': {
+                    'wheelchair_accessible': True,
+                    'has_lift': True,
+                    'accessible_toilet': True
+                },
+                'source': 'fallback_data'
+            }
+        ]
