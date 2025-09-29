@@ -12,11 +12,17 @@ from typing import List, Dict, Tuple, Optional
 import json
 import logging
 
-# Import our custom modules
-from models import Venue, UserPreferences, Itinerary, AccessibilityInfo, DayPlan
-from services.venue_service import VenueService
-from services.weather_service import WeatherService
-from services.itinerary_engine import ItineraryEngine
+# Import our custom modules with error handling
+try:
+    from models import Venue, UserPreferences, Itinerary, AccessibilityInfo, DayPlan
+    from services.venue_service import VenueService
+    from services.weather_service import WeatherService
+    from services.itinerary_engine import ItineraryEngine
+except ImportError as e:
+    import sys
+    print(f"Import error: {e}")
+    print("Please ensure all required modules are available")
+    sys.exit(1)
 
 # Configure logging with in-memory handler for Streamlit
 import io
