@@ -263,6 +263,31 @@ def main():
                 - Real-time Transport Info
                 """)
             
+            # Debug information (always show version info)
+            with st.expander("🔍 System Information", expanded=False):
+                if st.button("Check API Status"):
+                    try:
+                        # Test government data service
+                        from services.hk_gov_data_service import HKGovDataService
+                        gov_service = HKGovDataService()
+                        st.info(f"Government Service Version: {gov_service.version}")
+                        
+                        # Test API endpoints
+                        attractions = gov_service.get_major_attractions()
+                        st.success(f"✅ Attractions API: {len(attractions)} items")
+                        
+                        # Show sample data
+                        if attractions:
+                            sample = attractions[0]
+                            st.json({
+                                "sample_attraction": sample.get('name', 'N/A'),
+                                "source": sample.get('source', 'N/A'),
+                                "endpoint_used": "CSV" if "csv" in sample.get('source', '') else "Other"
+                            })
+                        
+                    except Exception as e:
+                        st.error(f"❌ API Test Failed: {str(e)}")
+            
             # Hidden debug panel (only show if there are issues)
             if st.session_state.get('show_debug', False):
                 with st.expander("🔧 Technical Support", expanded=False):
