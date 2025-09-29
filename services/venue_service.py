@@ -8,6 +8,7 @@ import sqlite3
 import logging
 from models import Venue, VenueCategory, Location, AccessibilityInfo, DietaryOption, WeatherSuitability, SearchCriteria
 from database import get_db_connection
+from services.offline_data_service import OfflineDataService
 # Lazy imports to avoid circular dependencies
 import json
 
@@ -21,6 +22,7 @@ class VenueService:
         """Initialize venue service"""
         self._hk_gov_service = None
         self._facilities_service = None
+        self._offline_service = None
         self._gov_data_cache = None
         self._last_update = None
     
@@ -34,6 +36,18 @@ class VenueService:
                 logger.warning(f"Could not import HK government service: {e}")
                 self._hk_gov_service = None
         return self._hk_gov_service
+    
+    def _get_offline_service(self):
+        """Get offline data service with safe import"""
+        if self._offline_service is None:
+            try:
+                from .offline_data_service import OfflineDataService
+                self._offline_service = OfflineDataService()
+                logger.info("Offline data service initialized successfully")
+            except ImportError as e:
+                logger.warning(f"Could not import offline data service: {e}")
+                self._offline_service = None
+        return self._offline_service
     
     def _get_facilities_service(self):
         """Get facilities service with safe import"""
@@ -116,23 +130,32 @@ class VenueService:
             return None
     
     def get_all_venues(self) -> List[Venue]:
-        """Get all venues from database and government APIs"""
-        # Get venues from local database
-        local_venues = []
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM venues")
-            rows = cursor.fetchall()
-            local_venues = [self._row_to_venue(row) for row in rows]
-        
-        # Get venues from government APIs
-        gov_venues = self._get_government_venues()
-        
-        # Combine and return
-        all_venues = local_venues + gov_venues
-        logger.info(f"Retrieved {len(local_venues)} local + {len(gov_venues)} government venues = {len(all_venues)} total")
-        
-        return all_venues
+        """Get all venues from offline data, database, and government APIs"""
+        try:
+            # Start with reliable offline data as foundation
+            offline_venues = self._get_offline_venues()
+            
+            # Add venues from local database
+            local_venues = []
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM venues")
+                rows = cursor.fetchall()
+                local_venues = [self._row_to_venue(row) for row in rows]
+            
+            # Enhance with government APIs (optional)
+            gov_venues = self._get_government_venues()
+            
+            # Combine all sources
+            all_venues = offline_venues + local_venues + gov_venues
+            logger.info(f"Retrieved {len(offline_venues)} offline + {len(local_venues)} local + {len(gov_venues)} government venues = {len(all_venues)} total")
+            
+            return all_venues
+            
+        except Exception as e:
+            logger.error(f"Error getting venues: {str(e)}")
+            # Always return at least offline venues as reliable fallback
+            return self._get_offline_venues()
     
     def get_venues_by_category(self, category: VenueCategory) -> List[Venue]:
         """Get venues by category"""
@@ -303,4 +326,30 @@ class VenueService:
             return {}
         except Exception as e:
             logger.warning(f"Error getting MTR accessibility info: {str(e)}")
-            return {}
+            return {} 
+   
+    def _get_offline_venues(self) -> List[Venue]:
+        """Get venues from offline data service"""
+        try:
+            offline_service = self._get_offline_service()
+            if offline_service:
+                offline_venues = offline_service.get_all_venues()
+                logger.info(f"Loaded {len(offline_venues)} offline venues")
+                return offline_venues
+            else:
+                logger.warning("Offline service not available")
+                return []
+            
+        except Exception as e:
+            logger.warning(f"Error loading offline venues: {str(e)}")
+            return []
+    
+    def _get_offline_service(self) -> Optional[OfflineDataService]:
+        """Get offline data service instance"""
+        if self._offline_service is None:
+            try:
+                self._offline_service = OfflineDataService()
+            except Exception as e:
+                logger.warning(f"Could not initialize offline data service: {str(e)}")
+                return None
+        return self._offline_service
