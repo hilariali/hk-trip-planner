@@ -3,7 +3,13 @@
 Test script for Hong Kong Government API integration
 """
 
+import sys
+import os
 import logging
+
+# Add the project root to Python path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from services.hk_gov_data_service import HKGovDataService
 from services.facilities_service import FacilitiesService
 from services.weather_service import WeatherService

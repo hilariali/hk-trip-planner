@@ -13,7 +13,7 @@ from models import (
     WeatherSuitability
 )
 from services.venue_service import VenueService
-from services.facilities_service import FacilitiesService
+# Lazy import to avoid circular dependencies
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -24,9 +24,17 @@ class ItineraryEngine:
     def __init__(self):
         """Initialize itinerary engine"""
         self.venue_service = VenueService()
-        self.facilities_service = FacilitiesService()
+        self._facilities_service = None
         self.max_venues_per_day = 3
         self.max_walking_distance = 2.0  # km per day for seniors/families
+    
+    @property
+    def facilities_service(self):
+        """Lazy load facilities service"""
+        if self._facilities_service is None:
+            from services.facilities_service import FacilitiesService
+            self._facilities_service = FacilitiesService()
+        return self._facilities_service
     
     def generate_itinerary(self, preferences: UserPreferences, weather_data: WeatherData) -> Itinerary:
         """Generate complete itinerary based on preferences and weather"""

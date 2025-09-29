@@ -8,8 +8,7 @@ import sqlite3
 import logging
 from models import Venue, VenueCategory, Location, AccessibilityInfo, DietaryOption, WeatherSuitability, SearchCriteria
 from database import get_db_connection
-from services.hk_gov_data_service import HKGovDataService
-from services.facilities_service import FacilitiesService
+# Lazy imports to avoid circular dependencies
 import json
 
 # Configure logging
@@ -20,10 +19,26 @@ class VenueService:
     
     def __init__(self):
         """Initialize venue service"""
-        self.hk_gov_service = HKGovDataService()
-        self.facilities_service = FacilitiesService()
+        self._hk_gov_service = None
+        self._facilities_service = None
         self._gov_data_cache = None
         self._last_update = None
+    
+    @property
+    def hk_gov_service(self):
+        """Lazy load HK government service"""
+        if self._hk_gov_service is None:
+            from services.hk_gov_data_service import HKGovDataService
+            self._hk_gov_service = HKGovDataService()
+        return self._hk_gov_service
+    
+    @property
+    def facilities_service(self):
+        """Lazy load facilities service"""
+        if self._facilities_service is None:
+            from services.facilities_service import FacilitiesService
+            self._facilities_service = FacilitiesService()
+        return self._facilities_service
     
     def search_venues(self, criteria: SearchCriteria) -> List[Venue]:
         """Search venues based on criteria"""
