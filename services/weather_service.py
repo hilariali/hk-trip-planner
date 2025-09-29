@@ -28,25 +28,20 @@ class WeatherService:
     
     def get_current_weather(self) -> WeatherData:
         """Get current weather conditions in Hong Kong"""
-        logger.info("=== WEATHER SERVICE: Getting current weather ===")
         try:
             # Try to fetch from Hong Kong Observatory API
             url = f"{self.base_url}weather.php?dataType=rhrread&lang=en"
-            logger.info(f"Attempting to fetch weather from: {url}")
             response = requests.get(url, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
-                logger.info("Successfully fetched weather data from API")
                 return self._parse_weather_data(data)
             else:
-                logger.warning(f"Weather API returned status {response.status_code}, using mock data")
                 # Fallback to mock data
                 return self._get_mock_weather()
                 
         except Exception as e:
-            logger.warning(f"Could not fetch live weather data: {str(e)}. Using default conditions.")
-            st.warning(f"Could not fetch live weather data: {str(e)}. Using default conditions.")
+            logger.info(f"Using default weather conditions: {str(e)}")
             return self._get_mock_weather()
     
     def get_forecast(self, days: int = 3) -> List[WeatherData]:
@@ -187,16 +182,13 @@ class WeatherService:
     
     def _get_mock_weather(self) -> WeatherData:
         """Get mock weather data for testing/fallback"""
-        logger.info("Using mock weather data")
-        weather = WeatherData(
+        return WeatherData(
             temperature=25.0,
             humidity=70.0,
             rainfall_probability=20.0,
             weather_description="Partly cloudy with mild temperatures",
             is_suitable_for_outdoor=True
         )
-        logger.info(f"Mock weather: {weather}")
-        return weather
     
     def _get_mock_forecast(self, days: int) -> List[WeatherData]:
         """Get mock forecast data for testing/fallback"""

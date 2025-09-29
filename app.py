@@ -31,9 +31,9 @@ is_cloud = os.getenv('STREAMLIT_SHARING') or os.getenv('HEROKU') or '/mount/src'
 
 # Configure logging
 if is_cloud:
-    # In cloud, use INFO level and ensure console output
+    # In cloud, use WARNING level to reduce noise
     logging.basicConfig(
-        level=logging.INFO, 
+        level=logging.WARNING, 
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
             logging.StreamHandler(sys.stdout),  # Console output
@@ -42,9 +42,9 @@ if is_cloud:
         force=True  # Override any existing configuration
     )
 else:
-    # Local development
+    # Local development - more verbose
     logging.basicConfig(
-        level=logging.DEBUG, 
+        level=logging.INFO, 
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
             logging.StreamHandler(sys.stdout),  # Console output
@@ -54,9 +54,9 @@ else:
 
 logger = logging.getLogger(__name__)
 
-# Test logging immediately
-print(f"LOGGING TEST: Cloud environment detected: {is_cloud}")
-logger.info(f"Logger initialized - Cloud environment: {is_cloud}")
+# Only log in development
+if not is_cloud:
+    logger.info(f"Logger initialized - Cloud environment: {is_cloud}")
 
 # Page configuration
 st.set_page_config(
@@ -71,9 +71,8 @@ def main():
     st.title("🏙️ Hong Kong Trip Planner")
     st.markdown("### AI-Powered Accessible Itineraries for Families & Seniors")
     
-    # Show app status
+    # Initialize application silently
     logger.info("=== HONG KONG TRIP PLANNER STARTING ===")
-    st.info("🔄 Initializing application...")
     
     # Initialize database first
     try:
@@ -81,38 +80,31 @@ def main():
         from database import init_database, seed_sample_data, get_venue_count, DATABASE_PATH
         
         logger.info("Checking database status...")
-        st.info("🔍 Checking database...")
         
         # Check if database file exists
         if os.path.exists(DATABASE_PATH):
             logger.info(f"Database file exists at {DATABASE_PATH}")
-            st.info(f"📁 Database file found: {DATABASE_PATH}")
         else:
             logger.info(f"Database file not found, will create at {DATABASE_PATH}")
-            st.info(f"📁 Creating new database: {DATABASE_PATH}")
         
         logger.info("Initializing database...")
-        st.info("🔧 Initializing database structure...")
         init_database()
         
         logger.info("Seeding sample data...")
-        st.info("🌱 Adding sample venue data...")
         seed_sample_data()
         
         venue_count = get_venue_count()
         logger.info(f"Database initialized with {venue_count} venues")
         
-        # Show database status in UI
+        # Only show error if database is empty
         if venue_count == 0:
-            st.error("⚠️ Database is empty! Please check database initialization.")
+            st.error("⚠️ Application data is not available. Please try refreshing the page.")
             logger.error("Database has 0 venues after initialization")
-        else:
-            st.success(f"✅ Database ready with {venue_count} venues")
+            return
             
     except Exception as e:
         logger.error(f"Database initialization failed: {str(e)}", exc_info=True)
-        st.error(f"❌ Database error: {str(e)}")
-        st.exception(e)  # Show full traceback in Streamlit
+        st.error("⚠️ Application is temporarily unavailable. Please try refreshing the page.")
         return
     
     # Initialize services
@@ -133,7 +125,7 @@ def main():
         
     except Exception as e:
         logger.error(f"Service initialization failed: {str(e)}", exc_info=True)
-        st.error(f"❌ Service initialization error: {str(e)}")
+        st.error("⚠️ Application services are temporarily unavailable. Please try refreshing the page.")
         return
     
     # Sidebar for user preferences
@@ -151,111 +143,125 @@ def main():
                 log_buffer.seek(0)
                 log_buffer.truncate(0)
                 
-                st.info("🔍 Debug: Generate button clicked!")
                 logger.info("Generate Itinerary button clicked")
+                logger.info(f"User preferences: {user_preferences}")
                 
-                # Create status container
+                # Create status container for user-friendly messages
                 status_container = st.empty()
                 
                 with st.spinner("Creating your accessible Hong Kong itinerary..."):
-                    status_container.info("🔍 Step 1: Validating user preferences...")
-                    logger.info(f"User preferences: {user_preferences}")
+                    status_container.info("🔍 Analyzing your preferences...")
                     
-                    status_container.info("🔍 Step 2: Getting weather data...")
+                    status_container.info("🌤️ Checking current weather conditions...")
                     
-                    status_container.info("🔍 Step 3: Searching for suitable venues...")
+                    status_container.info("🏛️ Finding suitable venues and attractions...")
                     
-                    status_container.info("🔍 Step 4: Generating itinerary...")
+                    status_container.info("📋 Building your personalized itinerary...")
+                    
                     itinerary = generate_itinerary(user_preferences)
                     
                     if itinerary:
-                        status_container.success("✅ Itinerary generated successfully!")
+                        status_container.success("✅ Your itinerary is ready!")
                         logger.info("Displaying itinerary")
                         display_itinerary(itinerary)
                     else:
-                        status_container.error("❌ No itinerary was generated!")
+                        status_container.empty()
                         logger.error("No itinerary returned from generate_itinerary")
                         
-                        # Show troubleshooting info
-                        st.error("**Troubleshooting:**")
-                        st.write("- Check if your preferences are too restrictive")
-                        st.write("- Try reducing accessibility requirements")
-                        st.write("- Increase your budget range")
-                        st.write("- Check the debug panel below for more details")
+                        # Show user-friendly no results message
+                        st.warning("🤔 **No suitable itinerary found**")
+                        st.markdown("""
+                        We couldn't find venues that match all your requirements. Try adjusting:
+                        
+                        **💡 Suggestions:**
+                        - **Budget**: Increase your daily budget range
+                        - **Accessibility**: Reduce specific mobility requirements if flexible
+                        - **Dietary**: Remove dietary restrictions if not essential
+                        - **Duration**: Try a shorter trip duration
+                        
+                        **🎯 Quick Fix:** Try removing some filters and generate again!
+                        """)
+                        
+                        # Add a quick retry button with relaxed preferences
+                        if st.button("🔄 Try with Relaxed Preferences", type="secondary"):
+                            relaxed_prefs = UserPreferences(
+                                family_composition=user_preferences.family_composition,
+                                mobility_needs=[],  # Remove mobility restrictions
+                                dietary_restrictions=[],  # Remove dietary restrictions
+                                budget_range=(200, 1000),  # Wider budget range
+                                trip_duration=min(user_preferences.trip_duration, 2),  # Shorter duration
+                                transportation_preference=user_preferences.transportation_preference
+                            )
+                            
+                            with st.spinner("Trying with more flexible preferences..."):
+                                relaxed_itinerary = generate_itinerary(relaxed_prefs)
+                                if relaxed_itinerary:
+                                    st.success("✅ Found an itinerary with relaxed preferences!")
+                                    display_itinerary(relaxed_itinerary)
+                                else:
+                                    st.error("❌ Still no results. Please contact support.")
         
         with col2:
             st.info("💡 **Accessibility Focus**\n\nAll recommendations include:\n- Elevator/stair information\n- Accessible toilets\n- Soft meal options\n- Rest areas\n- Budget-friendly options")
             
-            # Debug panel
-            with st.expander("🔍 Debug Information", expanded=True):
-                col1, col2 = st.columns(2)
+            # Tips for better results
+            with st.expander("💡 Tips for Better Results"):
+                st.markdown("""
+                **🎯 Getting Great Itineraries:**
+                - **Budget**: HKD 300-800 per person works best
+                - **Duration**: 1-3 days for first-time visitors
+                - **Flexibility**: Fewer restrictions = more options
                 
-                with col1:
-                    if st.button("Test Database Connection"):
-                        try:
-                            from database import get_venue_count
-                            count = get_venue_count()
-                            st.success(f"✅ Database connected! Found {count} venues")
-                            logger.info(f"Database test: {count} venues")
-                        except Exception as e:
-                            st.error(f"❌ Database test failed: {str(e)}")
-                            logger.error(f"Database test failed: {str(e)}")
+                **♿ Accessibility Notes:**
+                - MTR stations are wheelchair accessible
+                - Most major attractions have elevators
+                - Restaurants can accommodate dietary needs
+                
+                **🌟 Popular Combinations:**
+                - Families: Parks + Museums + Dim Sum
+                - Seniors: Indoor attractions + Accessible transport
+                - Budget travelers: Free parks + Local eateries
+                """)
+            
+            # Hidden debug panel (only show if there are issues)
+            if st.session_state.get('show_debug', False):
+                with st.expander("🔧 Technical Support", expanded=False):
+                    col1, col2 = st.columns(2)
                     
-                    if st.button("Test Services"):
-                        try:
-                            # Test venue service
-                            all_venues = st.session_state.venue_service.get_all_venues()
-                            st.success(f"✅ Venue Service: {len(all_venues)} venues loaded")
-                            logger.info(f"Venue service test: {len(all_venues)} venues")
-                            
-                            # Test weather service
-                            weather = st.session_state.weather_service.get_current_weather()
-                            st.success(f"✅ Weather Service: {weather.temperature}°C, {weather.weather_description}")
-                            logger.info(f"Weather service test: {weather.temperature}°C")
-                            
-                            # Test itinerary engine
-                            st.success("✅ Itinerary Engine: Ready")
-                            logger.info("Itinerary engine test: Ready")
-                            
-                        except Exception as e:
-                            st.error(f"❌ Service test failed: {str(e)}")
-                            logger.error(f"Service test failed: {str(e)}", exc_info=True)
-                
-                with col2:
-                    if st.button("Quick Test Generation"):
-                        try:
-                            # Create minimal test preferences
-                            test_prefs = UserPreferences(
-                                family_composition={"adults": 2, "children": 0, "seniors": 0},
-                                mobility_needs=[],
-                                dietary_restrictions=[],
-                                budget_range=(200, 500),
-                                trip_duration=1,
-                                transportation_preference=["mtr"]
-                            )
-                            
-                            st.info("Testing with minimal preferences...")
-                            logger.info("Starting quick test generation")
-                            
-                            itinerary = generate_itinerary(test_prefs)
-                            if itinerary:
-                                st.success(f"✅ Quick test successful! Generated {len(itinerary.day_plans)} day(s)")
-                                logger.info(f"Quick test successful: {len(itinerary.day_plans)} days")
+                    with col1:
+                        if st.button("Test Database"):
+                            try:
+                                from database import get_venue_count
+                                count = get_venue_count()
+                                st.success(f"✅ Database: {count} venues")
+                                logger.info(f"Database test: {count} venues")
+                            except Exception as e:
+                                st.error(f"❌ Database error: {str(e)}")
+                                logger.error(f"Database test failed: {str(e)}")
+                        
+                        if st.button("Test Services"):
+                            try:
+                                all_venues = st.session_state.venue_service.get_all_venues()
+                                weather = st.session_state.weather_service.get_current_weather()
+                                st.success(f"✅ Services: {len(all_venues)} venues, {weather.temperature}°C")
+                                logger.info(f"Services test: {len(all_venues)} venues, {weather.temperature}°C")
+                            except Exception as e:
+                                st.error(f"❌ Services error: {str(e)}")
+                                logger.error(f"Services test failed: {str(e)}", exc_info=True)
+                    
+                    with col2:
+                        if st.button("Show Logs"):
+                            log_contents = log_buffer.getvalue()
+                            if log_contents:
+                                st.text_area("Recent Logs", log_contents, height=150)
                             else:
-                                st.error("❌ Quick test failed - no itinerary generated")
-                                logger.error("Quick test failed - no itinerary")
-                                
-                        except Exception as e:
-                            st.error(f"❌ Quick test failed: {str(e)}")
-                            logger.error(f"Quick test failed: {str(e)}", exc_info=True)
-                
-                # Show logs
-                if st.button("Show Recent Logs"):
-                    log_contents = log_buffer.getvalue()
-                    if log_contents:
-                        st.text_area("Recent Logs", log_contents, height=200)
-                    else:
-                        st.info("No logs captured yet. Try generating an itinerary first.")
+                                st.info("No recent logs available.")
+            
+            # Show debug panel if user encounters issues
+            if not st.session_state.get('show_debug', False):
+                if st.button("🔧 Having Issues? Click for Technical Support", key="debug_toggle"):
+                    st.session_state.show_debug = True
+                    st.experimental_rerun()
 
 def collect_user_preferences() -> Optional[UserPreferences]:
     """Collect user preferences through Streamlit form"""
@@ -348,7 +354,7 @@ def generate_itinerary(preferences: UserPreferences) -> Optional[Itinerary]:
         return itinerary
     except Exception as e:
         logger.error(f"Error generating itinerary: {str(e)}", exc_info=True)
-        st.error(f"Error generating itinerary: {str(e)}")
+        # Don't show technical error to user, just log it
         return None
 
 def display_itinerary(itinerary: Itinerary):
@@ -445,6 +451,7 @@ def export_to_json(itinerary: Itinerary) -> str:
     return json.dumps(asdict(itinerary), indent=2, default=str)
 
 if __name__ == "__main__":
-    print("=== STARTING HONG KONG TRIP PLANNER ===")
-    logger.info("Starting Hong Kong Trip Planner application")
+    if not is_cloud:
+        print("=== STARTING HONG KONG TRIP PLANNER ===")
+        logger.info("Starting Hong Kong Trip Planner application")
     main()
