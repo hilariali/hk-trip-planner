@@ -28,12 +28,15 @@ class ItineraryEngine:
         self.max_venues_per_day = 3
         self.max_walking_distance = 2.0  # km per day for seniors/families
     
-    @property
-    def facilities_service(self):
-        """Lazy load facilities service"""
+    def _get_facilities_service(self):
+        """Get facilities service with safe import"""
         if self._facilities_service is None:
-            from services.facilities_service import FacilitiesService
-            self._facilities_service = FacilitiesService()
+            try:
+                from .facilities_service import FacilitiesService
+                self._facilities_service = FacilitiesService()
+            except ImportError as e:
+                logger.warning(f"Could not import facilities service: {e}")
+                self._facilities_service = None
         return self._facilities_service
     
     def generate_itinerary(self, preferences: UserPreferences, weather_data: WeatherData) -> Itinerary:
@@ -419,18 +422,20 @@ class ItineraryEngine:
                 if 'rest_frequent' in preferences.mobility_needs:
                     user_needs.append('rest_area')
                 
-                # Get toilet facilities along route
-                toilets = self.facilities_service.find_facilities_along_route(waypoints, "toilet")
-                if toilets:
-                    accessible_toilets = [t for t in toilets if t.accessibility_features.get('wheelchair_accessible', False)]
-                    if accessible_toilets:
-                        facility_notes.append(f"Accessible toilets available near {len(accessible_toilets)} venues")
-                
-                # Get accessibility facilities
-                if user_needs:
-                    recommended_facilities = self.facilities_service.get_facility_recommendations(user_needs)
-                    if recommended_facilities:
-                        facility_notes.append(f"Specialized accessibility services available at {len(recommended_facilities)} nearby locations")
+                facilities_service = self._get_facilities_service()
+                if facilities_service:
+                    # Get toilet facilities along route
+                    toilets = facilities_service.find_facilities_along_route(waypoints, "toilet")
+                    if toilets:
+                        accessible_toilets = [t for t in toilets if t.accessibility_features.get('wheelchair_accessible', False)]
+                        if accessible_toilets:
+                            facility_notes.append(f"Accessible toilets available near {len(accessible_toilets)} venues")
+                    
+                    # Get accessibility facilities
+                    if user_needs:
+                        recommended_facilities = facilities_service.get_facility_recommendations(user_needs)
+                        if recommended_facilities:
+                            facility_notes.append(f"Specialized accessibility services available at {len(recommended_facilities)} nearby locations")
             
             return facility_notes
             

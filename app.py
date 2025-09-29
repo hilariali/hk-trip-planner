@@ -107,7 +107,7 @@ def main():
         st.error("⚠️ Application is temporarily unavailable. Please try refreshing the page.")
         return
     
-    # Initialize services
+    # Initialize services with error handling
     try:
         if 'venue_service' not in st.session_state:
             logger.info("Initializing venue service...")
@@ -122,6 +122,17 @@ def main():
             st.session_state.itinerary_engine = ItineraryEngine()
             
         logger.info("All services initialized successfully")
+        
+        # Test if government APIs are available
+        try:
+            test_venues = st.session_state.venue_service.get_all_venues()
+            if len(test_venues) > 6:  # More than just local venues
+                st.success("✅ Enhanced with Hong Kong Government data")
+            else:
+                st.info("ℹ️ Running with local venue database")
+        except Exception as api_e:
+            logger.warning(f"Government APIs not available: {api_e}")
+            st.info("ℹ️ Running with local venue database")
         
     except Exception as e:
         logger.error(f"Service initialization failed: {str(e)}", exc_info=True)

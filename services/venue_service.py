@@ -24,20 +24,26 @@ class VenueService:
         self._gov_data_cache = None
         self._last_update = None
     
-    @property
-    def hk_gov_service(self):
-        """Lazy load HK government service"""
+    def _get_hk_gov_service(self):
+        """Get HK government service with safe import"""
         if self._hk_gov_service is None:
-            from services.hk_gov_data_service import HKGovDataService
-            self._hk_gov_service = HKGovDataService()
+            try:
+                from .hk_gov_data_service import HKGovDataService
+                self._hk_gov_service = HKGovDataService()
+            except ImportError as e:
+                logger.warning(f"Could not import HK government service: {e}")
+                self._hk_gov_service = None
         return self._hk_gov_service
     
-    @property
-    def facilities_service(self):
-        """Lazy load facilities service"""
+    def _get_facilities_service(self):
+        """Get facilities service with safe import"""
         if self._facilities_service is None:
-            from services.facilities_service import FacilitiesService
-            self._facilities_service = FacilitiesService()
+            try:
+                from .facilities_service import FacilitiesService
+                self._facilities_service = FacilitiesService()
+            except ImportError as e:
+                logger.warning(f"Could not import facilities service: {e}")
+                self._facilities_service = None
         return self._facilities_service
     
     def search_venues(self, criteria: SearchCriteria) -> List[Venue]:
@@ -242,26 +248,28 @@ class VenueService:
         try:
             gov_venues = []
             
-            # Get major attractions
-            attractions = self.hk_gov_service.get_major_attractions()
-            for attraction_data in attractions[:20]:  # Limit to avoid overwhelming
-                venue = self.hk_gov_service.convert_to_venue(attraction_data)
-                if venue:
-                    gov_venues.append(venue)
-            
-            # Get HKTB events (as temporary attractions)
-            events = self.hk_gov_service.get_hktb_events()
-            for event_data in events[:10]:  # Limit current events
-                venue = self.hk_gov_service.convert_to_venue(event_data)
-                if venue:
-                    gov_venues.append(venue)
-            
-            # Get accessible facilities
-            facilities = self.hk_gov_service.get_accessible_facilities()
-            for facility_data in facilities[:15]:  # Limit facilities
-                venue = self.hk_gov_service.convert_to_venue(facility_data)
-                if venue:
-                    gov_venues.append(venue)
+            hk_gov_service = self._get_hk_gov_service()
+            if hk_gov_service:
+                # Get major attractions
+                attractions = hk_gov_service.get_major_attractions()
+                for attraction_data in attractions[:20]:  # Limit to avoid overwhelming
+                    venue = hk_gov_service.convert_to_venue(attraction_data)
+                    if venue:
+                        gov_venues.append(venue)
+                
+                # Get HKTB events (as temporary attractions)
+                events = hk_gov_service.get_hktb_events()
+                for event_data in events[:10]:  # Limit current events
+                    venue = hk_gov_service.convert_to_venue(event_data)
+                    if venue:
+                        gov_venues.append(venue)
+                
+                # Get accessible facilities
+                facilities = hk_gov_service.get_accessible_facilities()
+                for facility_data in facilities[:15]:  # Limit facilities
+                    venue = hk_gov_service.convert_to_venue(facility_data)
+                    if venue:
+                        gov_venues.append(venue)
             
             self._gov_data_cache = gov_venues
             logger.info(f"Cached {len(gov_venues)} government venues")
@@ -273,7 +281,10 @@ class VenueService:
     def get_nearby_facilities(self, latitude: float, longitude: float, radius_km: float = 1.0):
         """Get nearby public facilities like toilets and accessibility services"""
         try:
-            return self.facilities_service.get_nearby_facilities(latitude, longitude, radius_km)
+            facilities_service = self._get_facilities_service()
+            if facilities_service:
+                return facilities_service.get_nearby_facilities(latitude, longitude, radius_km)
+            return []
         except Exception as e:
             logger.warning(f"Error getting nearby facilities: {str(e)}")
             return []
@@ -281,7 +292,10 @@ class VenueService:
     def get_mtr_accessibility_info(self):
         """Get MTR accessibility information"""
         try:
-            return self.hk_gov_service.get_mtr_accessibility_info()
+            hk_gov_service = self._get_hk_gov_service()
+            if hk_gov_service:
+                return hk_gov_service.get_mtr_accessibility_info()
+            return {}
         except Exception as e:
             logger.warning(f"Error getting MTR accessibility info: {str(e)}")
             return {}
