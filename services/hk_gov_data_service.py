@@ -180,21 +180,31 @@ class HKGovDataService:
             try:
                 processed_attraction = {
                     'id': f"hktb_{len(processed)}",
-                    'name': attraction.get('Name (English)', attraction.get('Name', 'Unknown Attraction')),
+                    'name': attraction.get('Attraction', attraction.get('Name (English)', 'Unknown Attraction')),
                     'name_zh': attraction.get('Name (Traditional Chinese)', ''),
                     'category': 'attraction',
-                    'description': attraction.get('Description (English)', ''),
-                    'district': attraction.get('District (English)', ''),
-                    'address': attraction.get('Address (English)', ''),
-                    'latitude': float(attraction.get('Latitude', 0)) if attraction.get('Latitude') else None,
-                    'longitude': float(attraction.get('Longitude', 0)) if attraction.get('Longitude') else None,
-                    'phone': attraction.get('Telephone', ''),
+                    'description': attraction.get('Description', ''),
+                    'district': '',  # Not available in this CSV format
+                    'address': attraction.get('Address', ''),
+                    'latitude': None,  # Parse from coordinates field
+                    'longitude': None,  # Parse from coordinates field
+                    'phone': attraction.get('Telephone number', ''),
                     'website': attraction.get('Website', ''),
-                    'opening_hours': attraction.get('Opening Hours', ''),
-                    'admission_fee': attraction.get('Admission', ''),
+                    'opening_hours': '',
+                    'admission_fee': '',
                     'accessibility_info': {},  # Will be enhanced with additional data
                     'source': 'hktb_attractions_csv'
                 }
+                
+                # Parse coordinates if available
+                coords = attraction.get('Latitude and longitude coordinates', '')
+                if coords and ',' in coords:
+                    try:
+                        lat_str, lng_str = coords.split(',')
+                        processed_attraction['latitude'] = float(lat_str.strip())
+                        processed_attraction['longitude'] = float(lng_str.strip())
+                    except:
+                        pass
                 processed.append(processed_attraction)
                 
             except Exception as e:
