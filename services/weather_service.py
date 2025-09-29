@@ -27,14 +27,15 @@ class WeatherService:
             self.api_key = ""
     
     def get_current_weather(self) -> WeatherData:
-        """Get current weather conditions from Hong Kong Observatory"""
+        """Get current weather conditions from Hong Kong Observatory official API"""
         try:
-            # Use Hong Kong Observatory official API
+            # Use official HK Observatory real-time weather API
             hko_url = "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=rhrread&lang=en"
             response = requests.get(hko_url, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
+                logger.info("Successfully fetched real-time weather from HK Observatory")
                 return self._parse_hko_weather_data(data)
             else:
                 logger.warning(f"HKO API returned status {response.status_code}")
@@ -45,14 +46,15 @@ class WeatherService:
             return self._get_mock_weather()
     
     def get_forecast(self, days: int = 3) -> List[WeatherData]:
-        """Get weather forecast from Hong Kong Observatory"""
+        """Get weather forecast from Hong Kong Observatory official 9-day forecast API"""
         try:
-            # Use HKO official forecast API
+            # Use official HKO 9-day forecast API
             hko_forecast_url = "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=fnd&lang=en"
             response = requests.get(hko_forecast_url, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
+                logger.info(f"Successfully fetched {days}-day forecast from HK Observatory")
                 return self._parse_hko_forecast_data(data, days)
             else:
                 logger.warning(f"HKO forecast API returned status {response.status_code}")

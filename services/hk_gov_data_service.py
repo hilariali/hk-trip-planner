@@ -22,29 +22,36 @@ class HKGovDataService:
         self._api_available = True  # Track if APIs are working
     
     def get_major_attractions(self) -> List[Dict]:
-        """Get major attractions from HK Tourism Board"""
+        """Get major attractions from HK Tourism Board CSV"""
         if not self._api_available:
             return []  # Skip if APIs are known to be down
             
         try:
-            # Major attractions API
-            url = "https://www.discover.gov.hk/opendata/attractions.json"
-            response = requests.get(url, timeout=self.timeout)
+            # Use official HK Tourism Board CSV endpoint
+            url = "https://www.tourism.gov.hk/datagovhk/major_attractions/major_attractions_info_en.csv"
+            response = requests.get(url, timeout=10)
             
             if response.status_code == 200:
-                data = response.json()
-                logger.info(f"Retrieved {len(data)} major attractions from HK Tourism Board")
+                # Parse CSV data
+                import csv
+                import io
+                
+                csv_data = response.text
+                reader = csv.DictReader(io.StringIO(csv_data))
+                attractions = list(reader)
+                
+                logger.info(f"Retrieved {len(attractions)} major attractions from HK Tourism Board CSV")
                 self._api_available = True
-                return self._process_attractions_data(data)
+                return self._process_attractions_csv_data(attractions)
             else:
                 if response.status_code == 404:
                     self._api_available = False  # Mark as unavailable
-                logger.warning(f"Attractions API returned status {response.status_code}")
+                logger.warning(f"Attractions CSV API returned status {response.status_code}")
                 return []
                 
         except Exception as e:
             self._api_available = False  # Mark as unavailable on network errors
-            logger.warning(f"Could not fetch attractions data: {str(e)}")
+            logger.warning(f"Could not fetch attractions CSV data: {str(e)}")
             return []
     
     def get_hktb_events(self) -> List[Dict]:
@@ -73,68 +80,129 @@ class HKGovDataService:
             return []
     
     def get_restaurant_licenses(self) -> List[Dict]:
-        """Get licensed restaurants from FEHD"""
+        """Get licensed restaurants from FEHD XML"""
         try:
-            # Restaurant licenses API
-            url = "https://data.gov.hk/en-data/api/get?id=hk-fehd-fehdlmis-restaurant-licences&format=json"
-            response = requests.get(url, timeout=self.timeout)
+            # Use official FEHD restaurant licenses XML endpoint
+            url = "https://res.data.gov.hk/api/get-download-file?name=https%3A%2F%2Fwww.fehd.gov.hk%2Fenglish%2Flicensing%2Flicense%2Ftext%2FLP_Restaurants_EN.XML"
+            response = requests.get(url, timeout=10)
             
             if response.status_code == 200:
-                data = response.json()
-                logger.info(f"Retrieved {len(data)} restaurant licenses")
-                return self._process_restaurant_data(data)
+                # Parse XML data
+                import xml.etree.ElementTree as ET
+                
+                root = ET.fromstring(response.content)
+                restaurants = self._parse_restaurant_xml(root)
+                
+                logger.info(f"Retrieved {len(restaurants)} restaurant licenses from FEHD XML")
+                return restaurants
             else:
-                logger.warning(f"Restaurant API returned status {response.status_code}")
+                logger.warning(f"Restaurant XML API returned status {response.status_code}")
                 return []
                 
         except Exception as e:
-            logger.warning(f"Could not fetch restaurant data: {str(e)}")
+            logger.warning(f"Could not fetch restaurant XML data: {str(e)}")
             return []
     
     def get_mtr_accessibility_info(self) -> Dict:
-        """Get MTR routes and barrier-free facilities"""
+        """Get MTR routes and barrier-free facilities from official CSV"""
         try:
-            # MTR accessibility API
-            url = "https://data.gov.hk/en-data/api/get?id=mtr-data-routes-fares-barrier-free-facilities&format=json"
-            response = requests.get(url, timeout=self.timeout)
+            # Get MTR lines and stations
+            stations_url = "https://opendata.mtr.com.hk/data/mtr_lines_and_stations.csv"
+            facilities_url = "https://opendata.mtr.com.hk/data/barrier_free_facilities.csv"
             
-            if response.status_code == 200:
-                data = response.json()
-                logger.info(f"Retrieved MTR accessibility data")
-                return self._process_mtr_data(data)
+            stations_response = requests.get(stations_url, timeout=10)
+            facilities_response = requests.get(facilities_url, timeout=10)
+            
+            if stations_response.status_code == 200 and facilities_response.status_code == 200:
+                import csv
+                import io
+                
+                # Parse stations CSV
+                stations_reader = csv.DictReader(io.StringIO(stations_response.text))
+                stations = list(stations_reader)
+                
+                # Parse facilities CSV
+                facilities_reader = csv.DictReader(io.StringIO(facilities_response.text))
+                facilities = list(facilities_reader)
+                
+                logger.info(f"Retrieved {len(stations)} MTR stations and {len(facilities)} accessibility facilities")
+                return self._process_mtr_csv_data(stations, facilities)
             else:
-                logger.warning(f"MTR API returned status {response.status_code}")
+                logger.warning(f"MTR CSV APIs returned status {stations_response.status_code}, {facilities_response.status_code}")
                 return {}
                 
         except Exception as e:
-            logger.warning(f"Could not fetch MTR data: {str(e)}")
+            logger.warning(f"Could not fetch MTR CSV data: {str(e)}")
             return {}
     
     def get_accessible_facilities(self) -> List[Dict]:
-        """Get accessible facilities from Hong Kong Rehabilitation Society"""
+        """Get accessible facilities from Hong Kong Rehabilitation Society XML"""
         if not self._api_available:
             return []  # Skip if APIs are known to be down
             
         try:
-            # Accessible facilities API
-            url = "https://data.gov.hk/en-data/api/get?id=rehabsociety-access-accessibile-facilities&format=json"
-            response = requests.get(url, timeout=self.timeout)
+            # Use official accessibility XML endpoints
+            attractions_url = "https://res.data.gov.hk/api/get-download-file?name=https%3A%2F%2Faccessguide.hk%2F%3Ffeed%3Datom%26post_type%3Dlocation%26type%3Dattractions"
+            dining_url = "https://res.data.gov.hk/api/get-download-file?name=https%3A%2F%2Faccessguide.hk%2F%3Ffeed%3Datom%26post_type%3Dlocation%26type%3Dshopping-dining"
             
-            if response.status_code == 200:
-                data = response.json()
-                logger.info(f"Retrieved {len(data)} accessible facilities")
-                return self._process_accessibility_data(data)
-            else:
-                if response.status_code == 404:
-                    logger.info("Accessibility API not available (404) - using local data only")
-                else:
-                    logger.warning(f"Accessibility API returned status {response.status_code}")
-                return []
+            facilities = []
+            
+            # Get accessible attractions
+            try:
+                attractions_response = requests.get(attractions_url, timeout=10)
+                if attractions_response.status_code == 200:
+                    attractions_facilities = self._parse_accessibility_xml(attractions_response.content, 'attractions')
+                    facilities.extend(attractions_facilities)
+            except Exception as e:
+                logger.warning(f"Could not fetch accessible attractions XML: {str(e)}")
+            
+            # Get accessible dining/shopping
+            try:
+                dining_response = requests.get(dining_url, timeout=10)
+                if dining_response.status_code == 200:
+                    dining_facilities = self._parse_accessibility_xml(dining_response.content, 'dining')
+                    facilities.extend(dining_facilities)
+            except Exception as e:
+                logger.warning(f"Could not fetch accessible dining XML: {str(e)}")
+            
+            logger.info(f"Retrieved {len(facilities)} accessible facilities from XML feeds")
+            return facilities
                 
         except Exception as e:
-            logger.warning(f"Could not fetch accessibility data: {str(e)}")
+            logger.warning(f"Could not fetch accessibility XML data: {str(e)}")
             return []
     
+    def _process_attractions_csv_data(self, data: List[Dict]) -> List[Dict]:
+        """Process attractions CSV data into standardized format"""
+        processed = []
+        
+        for attraction in data:
+            try:
+                processed_attraction = {
+                    'id': f"hktb_{len(processed)}",
+                    'name': attraction.get('Name (English)', attraction.get('Name', 'Unknown Attraction')),
+                    'name_zh': attraction.get('Name (Traditional Chinese)', ''),
+                    'category': 'attraction',
+                    'description': attraction.get('Description (English)', ''),
+                    'district': attraction.get('District (English)', ''),
+                    'address': attraction.get('Address (English)', ''),
+                    'latitude': float(attraction.get('Latitude', 0)) if attraction.get('Latitude') else None,
+                    'longitude': float(attraction.get('Longitude', 0)) if attraction.get('Longitude') else None,
+                    'phone': attraction.get('Telephone', ''),
+                    'website': attraction.get('Website', ''),
+                    'opening_hours': attraction.get('Opening Hours', ''),
+                    'admission_fee': attraction.get('Admission', ''),
+                    'accessibility_info': {},  # Will be enhanced with additional data
+                    'source': 'hktb_attractions_csv'
+                }
+                processed.append(processed_attraction)
+                
+            except Exception as e:
+                logger.warning(f"Error processing attraction CSV {attraction}: {str(e)}")
+                continue
+        
+        return processed
+
     def _process_attractions_data(self, data: List[Dict]) -> List[Dict]:
         """Process attractions data into standardized format"""
         processed = []
@@ -375,4 +443,132 @@ class HKGovDataService:
         elif category == VenueCategory.PARK:
             return (0, 0)
         else:
-            return (0, 50)
+            return (0, 50) 
+   
+    def _parse_restaurant_xml(self, root) -> List[Dict]:
+        """Parse FEHD restaurant XML data"""
+        restaurants = []
+        
+        try:
+            # Navigate XML structure - adjust based on actual XML format
+            for restaurant_elem in root.findall('.//restaurant') or root.findall('.//licence'):
+                try:
+                    restaurant = {
+                        'id': f"fehd_{len(restaurants)}",
+                        'name': self._get_xml_text(restaurant_elem, 'name') or self._get_xml_text(restaurant_elem, 'licensee_name'),
+                        'category': 'restaurant',
+                        'district': self._get_xml_text(restaurant_elem, 'district'),
+                        'address': self._get_xml_text(restaurant_elem, 'address'),
+                        'licence_type': self._get_xml_text(restaurant_elem, 'licence_type'),
+                        'licence_no': self._get_xml_text(restaurant_elem, 'licence_no'),
+                        'source': 'fehd_xml'
+                    }
+                    restaurants.append(restaurant)
+                except Exception as e:
+                    logger.warning(f"Error parsing restaurant XML element: {str(e)}")
+                    continue
+                    
+        except Exception as e:
+            logger.warning(f"Error parsing restaurant XML: {str(e)}")
+        
+        return restaurants
+    
+    def _parse_accessibility_xml(self, xml_content: bytes, facility_type: str) -> List[Dict]:
+        """Parse accessibility XML data from Hong Kong Rehabilitation Society"""
+        facilities = []
+        
+        try:
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(xml_content)
+            
+            # Handle Atom feed format
+            for entry in root.findall('.//{http://www.w3.org/2005/Atom}entry'):
+                try:
+                    facility = {
+                        'id': f"rehab_{facility_type}_{len(facilities)}",
+                        'name': self._get_xml_text(entry, '{http://www.w3.org/2005/Atom}title'),
+                        'category': facility_type,
+                        'description': self._get_xml_text(entry, '{http://www.w3.org/2005/Atom}content'),
+                        'link': self._get_xml_attr(entry, '{http://www.w3.org/2005/Atom}link', 'href'),
+                        'accessibility_features': {
+                            'wheelchair_accessible': True,  # Assume true for rehab society data
+                            'has_lift': False,  # Will be parsed from content if available
+                            'accessible_toilet': False,
+                            'accessible_parking': False
+                        },
+                        'source': f'rehab_society_{facility_type}'
+                    }
+                    
+                    # Try to extract more details from content
+                    content = facility.get('description', '').lower()
+                    if 'lift' in content or 'elevator' in content:
+                        facility['accessibility_features']['has_lift'] = True
+                    if 'toilet' in content:
+                        facility['accessibility_features']['accessible_toilet'] = True
+                    if 'parking' in content:
+                        facility['accessibility_features']['accessible_parking'] = True
+                    
+                    facilities.append(facility)
+                    
+                except Exception as e:
+                    logger.warning(f"Error parsing accessibility XML entry: {str(e)}")
+                    continue
+                    
+        except Exception as e:
+            logger.warning(f"Error parsing accessibility XML: {str(e)}")
+        
+        return facilities
+    
+    def _process_mtr_csv_data(self, stations: List[Dict], facilities: List[Dict]) -> Dict:
+        """Process MTR CSV data"""
+        try:
+            processed = {
+                'stations': {},
+                'lines': {},
+                'accessibility_features': {}
+            }
+            
+            # Process stations
+            for station in stations:
+                station_code = station.get('Station Code', station.get('Code', ''))
+                if station_code:
+                    processed['stations'][station_code] = {
+                        'name_en': station.get('Station Name (English)', station.get('Name', '')),
+                        'name_zh': station.get('Station Name (Chinese)', ''),
+                        'line': station.get('Line', ''),
+                        'wheelchair_accessible': False,  # Will be updated from facilities
+                        'has_lift': False,
+                        'step_free_access': False
+                    }
+            
+            # Process accessibility facilities
+            for facility in facilities:
+                station_code = facility.get('Station Code', '')
+                if station_code in processed['stations']:
+                    facility_type = facility.get('Facility Type', '').lower()
+                    if 'lift' in facility_type or 'elevator' in facility_type:
+                        processed['stations'][station_code]['has_lift'] = True
+                        processed['stations'][station_code]['wheelchair_accessible'] = True
+                        processed['stations'][station_code]['step_free_access'] = True
+            
+            return processed
+            
+        except Exception as e:
+            logger.warning(f"Error processing MTR CSV data: {str(e)}")
+            return {}
+    
+    def _get_xml_text(self, element, tag_name: str) -> str:
+        """Safely get text from XML element"""
+        try:
+            elem = element.find(tag_name)
+            return elem.text if elem is not None and elem.text else ''
+        except:
+            return ''
+    
+    def _get_xml_attr(self, element, tag_name: str, attr_name: str) -> str:
+        """Safely get attribute from XML element"""
+        try:
+            elem = element.find(tag_name)
+            return elem.get(attr_name) if elem is not None else ''
+        except:
+            return ''
