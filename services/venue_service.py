@@ -8,6 +8,8 @@ import sqlite3
 import logging
 from models import Venue, VenueCategory, Location, AccessibilityInfo, DietaryOption, WeatherSuitability, SearchCriteria
 from database import get_db_connection
+from services.hk_gov_data_service import HKGovDataService
+from services.facilities_service import FacilitiesService
 import json
 
 # Configure logging
@@ -18,7 +20,10 @@ class VenueService:
     
     def __init__(self):
         """Initialize venue service"""
-        pass
+        self.hk_gov_service = HKGovDataService()
+        self.facilities_service = FacilitiesService()
+        self._gov_data_cache = None
+        self._last_update = None
     
     def search_venues(self, criteria: SearchCriteria) -> List[Venue]:
         """Search venues based on criteria"""
@@ -90,13 +95,23 @@ class VenueService:
             return None
     
     def get_all_venues(self) -> List[Venue]:
-        """Get all venues from database"""
+        """Get all venues from database and government APIs"""
+        # Get venues from local database
+        local_venues = []
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM venues")
             rows = cursor.fetchall()
-            
-            return [self._row_to_venue(row) for row in rows]
+            local_venues = [self._row_to_venue(row) for row in rows]
+        
+        # Get venues from government APIs
+        gov_venues = self._get_government_venues()
+        
+        # Combine and return
+        all_venues = local_venues + gov_venues
+        logger.info(f"Retrieved {len(local_venues)} local + {len(gov_venues)} government venues = {len(all_venues)} total")
+        
+        return all_venues
     
     def get_venues_by_category(self, category: VenueCategory) -> List[Venue]:
         """Get venues by category"""
@@ -185,3 +200,73 @@ class VenueService:
             elderly_discount=bool(row['elderly_discount']),
             child_discount=bool(row['child_discount'])
         )
+    
+    def _get_government_venues(self) -> List[Venue]:
+        """Get venues from Hong Kong government APIs"""
+        try:
+            from datetime import datetime, timedelta
+            
+            # Check if we need to refresh cache (refresh every hour)
+            now = datetime.now()
+            if (self._gov_data_cache is None or 
+                self._last_update is None or 
+                now - self._last_update > timedelta(hours=1)):
+                
+                logger.info("Refreshing government venue data...")
+                self._refresh_government_data()
+                self._last_update = now
+            
+            return self._gov_data_cache or []
+            
+        except Exception as e:
+            logger.warning(f"Error fetching government venues: {str(e)}")
+            return []
+    
+    def _refresh_government_data(self):
+        """Refresh government venue data from APIs"""
+        try:
+            gov_venues = []
+            
+            # Get major attractions
+            attractions = self.hk_gov_service.get_major_attractions()
+            for attraction_data in attractions[:20]:  # Limit to avoid overwhelming
+                venue = self.hk_gov_service.convert_to_venue(attraction_data)
+                if venue:
+                    gov_venues.append(venue)
+            
+            # Get HKTB events (as temporary attractions)
+            events = self.hk_gov_service.get_hktb_events()
+            for event_data in events[:10]:  # Limit current events
+                venue = self.hk_gov_service.convert_to_venue(event_data)
+                if venue:
+                    gov_venues.append(venue)
+            
+            # Get accessible facilities
+            facilities = self.hk_gov_service.get_accessible_facilities()
+            for facility_data in facilities[:15]:  # Limit facilities
+                venue = self.hk_gov_service.convert_to_venue(facility_data)
+                if venue:
+                    gov_venues.append(venue)
+            
+            self._gov_data_cache = gov_venues
+            logger.info(f"Cached {len(gov_venues)} government venues")
+            
+        except Exception as e:
+            logger.warning(f"Error refreshing government data: {str(e)}")
+            self._gov_data_cache = []
+    
+    def get_nearby_facilities(self, latitude: float, longitude: float, radius_km: float = 1.0):
+        """Get nearby public facilities like toilets and accessibility services"""
+        try:
+            return self.facilities_service.get_nearby_facilities(latitude, longitude, radius_km)
+        except Exception as e:
+            logger.warning(f"Error getting nearby facilities: {str(e)}")
+            return []
+    
+    def get_mtr_accessibility_info(self):
+        """Get MTR accessibility information"""
+        try:
+            return self.hk_gov_service.get_mtr_accessibility_info()
+        except Exception as e:
+            logger.warning(f"Error getting MTR accessibility info: {str(e)}")
+            return {}

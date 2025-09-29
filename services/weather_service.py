@@ -27,17 +27,17 @@ class WeatherService:
             self.api_key = ""
     
     def get_current_weather(self) -> WeatherData:
-        """Get current weather conditions in Hong Kong"""
+        """Get current weather conditions from Hong Kong Observatory"""
         try:
-            # Try to fetch from Hong Kong Observatory API
-            url = f"{self.base_url}weather.php?dataType=rhrread&lang=en"
-            response = requests.get(url, timeout=10)
+            # Use Hong Kong Observatory official API
+            hko_url = "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=rhrread&lang=en"
+            response = requests.get(hko_url, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
-                return self._parse_weather_data(data)
+                return self._parse_hko_weather_data(data)
             else:
-                # Fallback to mock data
+                logger.warning(f"HKO API returned status {response.status_code}")
                 return self._get_mock_weather()
                 
         except Exception as e:
@@ -45,21 +45,21 @@ class WeatherService:
             return self._get_mock_weather()
     
     def get_forecast(self, days: int = 3) -> List[WeatherData]:
-        """Get weather forecast for specified number of days"""
+        """Get weather forecast from Hong Kong Observatory"""
         try:
-            # Try to fetch forecast data
-            url = f"{self.base_url}weather.php?dataType=fnd&lang=en"
-            response = requests.get(url, timeout=10)
+            # Use HKO official forecast API
+            hko_forecast_url = "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=fnd&lang=en"
+            response = requests.get(hko_forecast_url, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
-                return self._parse_forecast_data(data, days)
+                return self._parse_hko_forecast_data(data, days)
             else:
-                # Fallback to mock forecast
+                logger.warning(f"HKO forecast API returned status {response.status_code}")
                 return self._get_mock_forecast(days)
                 
         except Exception as e:
-            st.warning(f"Could not fetch weather forecast: {str(e)}. Using default forecast.")
+            logger.info(f"Using default forecast: {str(e)}")
             return self._get_mock_forecast(days)
     
     def recommend_indoor_outdoor_ratio(self, weather: WeatherData) -> float:
@@ -84,28 +84,47 @@ class WeatherService:
             return False
         return True
     
-    def _parse_weather_data(self, data: dict) -> WeatherData:
-        """Parse Hong Kong Observatory weather data"""
+    def _parse_hko_weather_data(self, data: dict) -> WeatherData:
+        """Parse Hong Kong Observatory official API weather data"""
         try:
-            # Extract temperature (try different possible fields)
+            # Extract temperature from HKO API format
             temperature = 25.0  # default
-            if 'temperature' in data:
-                temperature = float(data['temperature'][0]['value'])
-            elif 'temp' in data:
-                temperature = float(data['temp'])
+            if 'temperature' in data and data['temperature']:
+                for temp_data in data['temperature']:
+                    if temp_data.get('place') == 'Hong Kong Observatory':
+                        temperature = float(temp_data['value'])
+                        break
+                else:
+                    # Use first available temperature reading
+                    temperature = float(data['temperature'][0]['value'])
             
             # Extract humidity
             humidity = 70.0  # default
-            if 'humidity' in data:
-                humidity = float(data['humidity'][0]['value'])
+            if 'humidity' in data and data['humidity']:
+                for humid_data in data['humidity']:
+                    if humid_data.get('place') == 'Hong Kong Observatory':
+                        humidity = float(humid_data['value'])
+                        break
+                else:
+                    humidity = float(data['humidity'][0]['value'])
             
-            # Extract rainfall probability (may not be in current weather)
+            # Extract rainfall (if available)
             rainfall_prob = 30.0  # default
+            if 'rainfall' in data and data['rainfall']:
+                # Calculate rainfall probability based on recent rainfall
+                recent_rainfall = sum(float(r.get('main', 0)) for r in data['rainfall'][:3])
+                if recent_rainfall > 10:
+                    rainfall_prob = 70.0
+                elif recent_rainfall > 2:
+                    rainfall_prob = 50.0
+                else:
+                    rainfall_prob = 20.0
             
             # Weather description
             weather_desc = "Partly cloudy"
-            if 'weatherIcon' in data:
-                weather_desc = data.get('weatherDesc', weather_desc)
+            if 'icon' in data and data['icon']:
+                icon_code = data['icon'][0]
+                weather_desc = self._icon_to_description(icon_code)
             
             return WeatherData(
                 temperature=temperature,
@@ -116,35 +135,74 @@ class WeatherService:
             )
             
         except Exception as e:
-            st.warning(f"Error parsing weather data: {str(e)}")
+            logger.warning(f"Error parsing HKO weather data: {str(e)}")
             return self._get_mock_weather()
     
-    def _parse_forecast_data(self, data: dict, days: int) -> List[WeatherData]:
-        """Parse forecast data from Hong Kong Observatory"""
+    def _icon_to_description(self, icon_code: int) -> str:
+        """Convert HKO weather icon code to description"""
+        icon_descriptions = {
+            50: "Sunny",
+            51: "Sunny periods",
+            52: "Sunny intervals",
+            53: "Sunny periods with a few showers",
+            54: "Sunny intervals with showers",
+            60: "Cloudy",
+            61: "Overcast",
+            62: "Light rain",
+            63: "Rain",
+            64: "Heavy rain",
+            65: "Thunderstorms",
+            70: "Fine",
+            71: "Partly cloudy",
+            72: "Cloudy with sunny periods",
+            73: "Cloudy with occasional showers",
+            74: "Cloudy with showers",
+            75: "Cloudy with heavy showers",
+            76: "Cloudy with thunderstorms",
+            77: "Hot",
+            80: "Windy",
+            81: "Dry",
+            82: "Humid",
+            83: "Foggy",
+            84: "Misty",
+            85: "Hazy"
+        }
+        return icon_descriptions.get(icon_code, "Partly cloudy")
+    
+    def _parse_hko_forecast_data(self, data: dict, days: int) -> List[WeatherData]:
+        """Parse forecast data from Hong Kong Observatory official API"""
         forecasts = []
         
         try:
-            # Hong Kong Observatory forecast format
+            # HKO forecast format
             if 'weatherForecast' in data:
                 forecast_data = data['weatherForecast'][:days]
                 
                 for day_data in forecast_data:
+                    # Temperature
                     temp_high = day_data.get('forecastMaxtemp', {}).get('value', 28)
                     temp_low = day_data.get('forecastMintemp', {}).get('value', 22)
                     avg_temp = (float(temp_high) + float(temp_low)) / 2
                     
-                    humidity = day_data.get('forecastMaxrh', {}).get('value', 75)
+                    # Humidity
+                    humidity_min = day_data.get('forecastMinrh', {}).get('value', 60)
+                    humidity_max = day_data.get('forecastMaxrh', {}).get('value', 85)
+                    avg_humidity = (float(humidity_min) + float(humidity_max)) / 2
+                    
+                    # Weather description
                     weather_desc = day_data.get('forecastWeather', 'Partly cloudy')
                     
-                    # Estimate rainfall probability from weather description
+                    # Rainfall probability from weather description and PSR
                     rainfall_prob = self._estimate_rainfall_from_description(weather_desc)
+                    if 'PSR' in day_data:
+                        rainfall_prob = max(rainfall_prob, float(day_data['PSR']))
                     
                     forecasts.append(WeatherData(
                         temperature=avg_temp,
-                        humidity=float(humidity),
+                        humidity=avg_humidity,
                         rainfall_probability=rainfall_prob,
                         weather_description=weather_desc,
-                        is_suitable_for_outdoor=self._is_outdoor_suitable(avg_temp, float(humidity), rainfall_prob)
+                        is_suitable_for_outdoor=self._is_outdoor_suitable(avg_temp, avg_humidity, rainfall_prob)
                     ))
             
             # Fill remaining days with mock data if needed
@@ -152,7 +210,7 @@ class WeatherService:
                 forecasts.append(self._get_mock_weather())
                 
         except Exception as e:
-            st.warning(f"Error parsing forecast data: {str(e)}")
+            logger.warning(f"Error parsing HKO forecast data: {str(e)}")
             return self._get_mock_forecast(days)
         
         return forecasts

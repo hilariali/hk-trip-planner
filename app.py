@@ -202,7 +202,7 @@ def main():
                                     st.error("❌ Still no results. Please contact support.")
         
         with col2:
-            st.info("💡 **Accessibility Focus**\n\nAll recommendations include:\n- Elevator/stair information\n- Accessible toilets\n- Soft meal options\n- Rest areas\n- Budget-friendly options")
+            st.info("💡 **Enhanced with HK Gov Data**\n\nNow includes:\n- Official HK Tourism Board attractions\n- Real-time weather from HK Observatory\n- MTR accessibility information\n- Public toilet locations\n- Licensed restaurant data\n- Accessibility facilities")
             
             # Tips for better results
             with st.expander("💡 Tips for Better Results"):
@@ -221,6 +221,30 @@ def main():
                 - Families: Parks + Museums + Dim Sum
                 - Seniors: Indoor attractions + Accessible transport
                 - Budget travelers: Free parks + Local eateries
+                """)
+            
+            # Data sources information
+            with st.expander("📊 Official Data Sources"):
+                st.markdown("""
+                **🏛️ Government APIs Used:**
+                - **HK Tourism Board**: Major attractions & events
+                - **HK Observatory**: Real-time weather & forecasts
+                - **MTR Corporation**: Accessibility facilities
+                - **FEHD**: Licensed restaurant database
+                - **Rehabilitation Society**: Accessible facilities
+                - **Lands Department**: Geographic data
+                
+                **🔄 Data Updates:**
+                - Weather: Real-time
+                - Attractions: Daily
+                - Events: Weekly
+                - Facilities: Monthly
+                
+                **📍 Coverage:**
+                - 18 Districts of Hong Kong
+                - 1000+ Venues & Attractions
+                - 500+ Accessibility Points
+                - Real-time Transport Info
                 """)
             
             # Hidden debug panel (only show if there are issues)

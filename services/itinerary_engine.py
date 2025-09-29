@@ -13,6 +13,7 @@ from models import (
     WeatherSuitability
 )
 from services.venue_service import VenueService
+from services.facilities_service import FacilitiesService
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ class ItineraryEngine:
     def __init__(self):
         """Initialize itinerary engine"""
         self.venue_service = VenueService()
+        self.facilities_service = FacilitiesService()
         self.max_venues_per_day = 3
         self.max_walking_distance = 2.0  # km per day for seniors/families
     
@@ -156,6 +158,11 @@ class ItineraryEngine:
         # Generate accessibility and weather notes
         accessibility_notes = self._generate_accessibility_notes(selected_venues, preferences)
         weather_notes = self._generate_weather_notes(weather_data)
+        
+        # Add facility recommendations if needed
+        if preferences.requires_accessibility():
+            facility_notes = self._add_facility_recommendations(selected_venues, preferences)
+            accessibility_notes.extend(facility_notes)
         
         return DayPlan(
             day=day,
@@ -382,3 +389,43 @@ class ItineraryEngine:
         # Convert to 1-5 scale
         score = (accessibility_points / max_points) * 5
         return round(score, 1)
+    
+    def _add_facility_recommendations(self, venues: List[Venue], preferences: UserPreferences) -> List[str]:
+        """Add facility recommendations based on venues and user needs"""
+        try:
+            facility_notes = []
+            
+            # Get route waypoints from venues
+            waypoints = []
+            for venue in venues:
+                if venue.location.latitude and venue.location.longitude:
+                    waypoints.append((venue.location.latitude, venue.location.longitude))
+            
+            if waypoints:
+                # Find facilities along the route
+                user_needs = []
+                if 'wheelchair' in preferences.mobility_needs:
+                    user_needs.append('wheelchair')
+                if preferences.has_children():
+                    user_needs.append('baby_changing')
+                if 'rest_frequent' in preferences.mobility_needs:
+                    user_needs.append('rest_area')
+                
+                # Get toilet facilities along route
+                toilets = self.facilities_service.find_facilities_along_route(waypoints, "toilet")
+                if toilets:
+                    accessible_toilets = [t for t in toilets if t.accessibility_features.get('wheelchair_accessible', False)]
+                    if accessible_toilets:
+                        facility_notes.append(f"Accessible toilets available near {len(accessible_toilets)} venues")
+                
+                # Get accessibility facilities
+                if user_needs:
+                    recommended_facilities = self.facilities_service.get_facility_recommendations(user_needs)
+                    if recommended_facilities:
+                        facility_notes.append(f"Specialized accessibility services available at {len(recommended_facilities)} nearby locations")
+            
+            return facility_notes
+            
+        except Exception as e:
+            logger.warning(f"Error adding facility recommendations: {str(e)}")
+            return []
