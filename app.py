@@ -21,20 +21,42 @@ from services.itinerary_engine import ItineraryEngine
 # Configure logging with in-memory handler for Streamlit
 import io
 import sys
+import os
 
 # Create a string buffer to capture logs
 log_buffer = io.StringIO()
 
+# Check if we're in a cloud environment
+is_cloud = os.getenv('STREAMLIT_SHARING') or os.getenv('HEROKU') or '/mount/src' in os.getcwd()
+
 # Configure logging
-logging.basicConfig(
-    level=logging.DEBUG, 
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),  # Console output
-        logging.StreamHandler(log_buffer)   # Buffer for Streamlit
-    ]
-)
+if is_cloud:
+    # In cloud, use INFO level and ensure console output
+    logging.basicConfig(
+        level=logging.INFO, 
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(sys.stdout),  # Console output
+            logging.StreamHandler(log_buffer)   # Buffer for Streamlit
+        ],
+        force=True  # Override any existing configuration
+    )
+else:
+    # Local development
+    logging.basicConfig(
+        level=logging.DEBUG, 
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(sys.stdout),  # Console output
+            logging.StreamHandler(log_buffer)   # Buffer for Streamlit
+        ]
+    )
+
 logger = logging.getLogger(__name__)
+
+# Test logging immediately
+print(f"LOGGING TEST: Cloud environment detected: {is_cloud}")
+logger.info(f"Logger initialized - Cloud environment: {is_cloud}")
 
 # Page configuration
 st.set_page_config(
@@ -49,15 +71,70 @@ def main():
     st.title("🏙️ Hong Kong Trip Planner")
     st.markdown("### AI-Powered Accessible Itineraries for Families & Seniors")
     
+    # Show app status
+    logger.info("=== HONG KONG TRIP PLANNER STARTING ===")
+    st.info("🔄 Initializing application...")
+    
+    # Initialize database first
+    try:
+        import os
+        from database import init_database, seed_sample_data, get_venue_count, DATABASE_PATH
+        
+        logger.info("Checking database status...")
+        st.info("🔍 Checking database...")
+        
+        # Check if database file exists
+        if os.path.exists(DATABASE_PATH):
+            logger.info(f"Database file exists at {DATABASE_PATH}")
+            st.info(f"📁 Database file found: {DATABASE_PATH}")
+        else:
+            logger.info(f"Database file not found, will create at {DATABASE_PATH}")
+            st.info(f"📁 Creating new database: {DATABASE_PATH}")
+        
+        logger.info("Initializing database...")
+        st.info("🔧 Initializing database structure...")
+        init_database()
+        
+        logger.info("Seeding sample data...")
+        st.info("🌱 Adding sample venue data...")
+        seed_sample_data()
+        
+        venue_count = get_venue_count()
+        logger.info(f"Database initialized with {venue_count} venues")
+        
+        # Show database status in UI
+        if venue_count == 0:
+            st.error("⚠️ Database is empty! Please check database initialization.")
+            logger.error("Database has 0 venues after initialization")
+        else:
+            st.success(f"✅ Database ready with {venue_count} venues")
+            
+    except Exception as e:
+        logger.error(f"Database initialization failed: {str(e)}", exc_info=True)
+        st.error(f"❌ Database error: {str(e)}")
+        st.exception(e)  # Show full traceback in Streamlit
+        return
+    
     # Initialize services
-    if 'venue_service' not in st.session_state:
-        st.session_state.venue_service = VenueService()
-    
-    if 'weather_service' not in st.session_state:
-        st.session_state.weather_service = WeatherService()
-    
-    if 'itinerary_engine' not in st.session_state:
-        st.session_state.itinerary_engine = ItineraryEngine()
+    try:
+        if 'venue_service' not in st.session_state:
+            logger.info("Initializing venue service...")
+            st.session_state.venue_service = VenueService()
+        
+        if 'weather_service' not in st.session_state:
+            logger.info("Initializing weather service...")
+            st.session_state.weather_service = WeatherService()
+        
+        if 'itinerary_engine' not in st.session_state:
+            logger.info("Initializing itinerary engine...")
+            st.session_state.itinerary_engine = ItineraryEngine()
+            
+        logger.info("All services initialized successfully")
+        
+    except Exception as e:
+        logger.error(f"Service initialization failed: {str(e)}", exc_info=True)
+        st.error(f"❌ Service initialization error: {str(e)}")
+        return
     
     # Sidebar for user preferences
     with st.sidebar:
@@ -110,27 +187,67 @@ def main():
             st.info("💡 **Accessibility Focus**\n\nAll recommendations include:\n- Elevator/stair information\n- Accessible toilets\n- Soft meal options\n- Rest areas\n- Budget-friendly options")
             
             # Debug panel
-            with st.expander("🔍 Debug Information", expanded=False):
-                if st.button("Test Database Connection"):
-                    from database import get_venue_count
-                    count = get_venue_count()
-                    st.success(f"✅ Database connected! Found {count} venues")
+            with st.expander("🔍 Debug Information", expanded=True):
+                col1, col2 = st.columns(2)
                 
-                if st.button("Test Services"):
-                    try:
-                        # Test venue service
-                        all_venues = st.session_state.venue_service.get_all_venues()
-                        st.success(f"✅ Venue Service: {len(all_venues)} venues loaded")
-                        
-                        # Test weather service
-                        weather = st.session_state.weather_service.get_current_weather()
-                        st.success(f"✅ Weather Service: {weather.temperature}°C, {weather.weather_description}")
-                        
-                        # Test itinerary engine
-                        st.success("✅ Itinerary Engine: Ready")
-                        
-                    except Exception as e:
-                        st.error(f"❌ Service test failed: {str(e)}")
+                with col1:
+                    if st.button("Test Database Connection"):
+                        try:
+                            from database import get_venue_count
+                            count = get_venue_count()
+                            st.success(f"✅ Database connected! Found {count} venues")
+                            logger.info(f"Database test: {count} venues")
+                        except Exception as e:
+                            st.error(f"❌ Database test failed: {str(e)}")
+                            logger.error(f"Database test failed: {str(e)}")
+                    
+                    if st.button("Test Services"):
+                        try:
+                            # Test venue service
+                            all_venues = st.session_state.venue_service.get_all_venues()
+                            st.success(f"✅ Venue Service: {len(all_venues)} venues loaded")
+                            logger.info(f"Venue service test: {len(all_venues)} venues")
+                            
+                            # Test weather service
+                            weather = st.session_state.weather_service.get_current_weather()
+                            st.success(f"✅ Weather Service: {weather.temperature}°C, {weather.weather_description}")
+                            logger.info(f"Weather service test: {weather.temperature}°C")
+                            
+                            # Test itinerary engine
+                            st.success("✅ Itinerary Engine: Ready")
+                            logger.info("Itinerary engine test: Ready")
+                            
+                        except Exception as e:
+                            st.error(f"❌ Service test failed: {str(e)}")
+                            logger.error(f"Service test failed: {str(e)}", exc_info=True)
+                
+                with col2:
+                    if st.button("Quick Test Generation"):
+                        try:
+                            # Create minimal test preferences
+                            test_prefs = UserPreferences(
+                                family_composition={"adults": 2, "children": 0, "seniors": 0},
+                                mobility_needs=[],
+                                dietary_restrictions=[],
+                                budget_range=(200, 500),
+                                trip_duration=1,
+                                transportation_preference=["mtr"]
+                            )
+                            
+                            st.info("Testing with minimal preferences...")
+                            logger.info("Starting quick test generation")
+                            
+                            itinerary = generate_itinerary(test_prefs)
+                            if itinerary:
+                                st.success(f"✅ Quick test successful! Generated {len(itinerary.day_plans)} day(s)")
+                                logger.info(f"Quick test successful: {len(itinerary.day_plans)} days")
+                            else:
+                                st.error("❌ Quick test failed - no itinerary generated")
+                                logger.error("Quick test failed - no itinerary")
+                                
+                        except Exception as e:
+                            st.error(f"❌ Quick test failed: {str(e)}")
+                            logger.error(f"Quick test failed: {str(e)}", exc_info=True)
                 
                 # Show logs
                 if st.button("Show Recent Logs"):
@@ -142,6 +259,8 @@ def main():
 
 def collect_user_preferences() -> Optional[UserPreferences]:
     """Collect user preferences through Streamlit form"""
+    logger.info("Rendering user preferences form")
+    
     with st.form("preferences_form"):
         st.subheader("Family Composition")
         
@@ -326,4 +445,6 @@ def export_to_json(itinerary: Itinerary) -> str:
     return json.dumps(asdict(itinerary), indent=2, default=str)
 
 if __name__ == "__main__":
+    print("=== STARTING HONG KONG TRIP PLANNER ===")
+    logger.info("Starting Hong Kong Trip Planner application")
     main()
