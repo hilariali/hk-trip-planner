@@ -1,286 +1,141 @@
-# 🏙️ Hong Kong Trip Planner
+# HK Travel Planner 🏙️
 
-An AI-powered, web-based trip planning assistant designed specifically for families and seniors visiting Hong Kong. The system generates safe, accessible, and budget-friendly itineraries that address real mobility, dietary, and accessibility needs.
+An AI-powered, conversational travel planner for Hong Kong, specifically designed for families and seniors with accessibility needs. Built with Streamlit and powered by Large Language Models via Akash Network.
 
-## ✨ Key Features
+## Features ✨
 
-### 🎯 Accessibility-First Design
-- **Comprehensive accessibility information** for every venue
-- **Mobility support** for wheelchairs, walking aids, and stair avoidance
-- **Senior-friendly options** with rest areas and difficulty ratings
-- **Family facilities** including parent rooms and child-friendly venues
+- **Conversational Interface**: Natural language interaction for describing travel preferences
+- **Accessibility-First**: Specialized recommendations for mobility, dietary, and safety needs
+- **AI-Powered Intelligence**: Uses DeepSeek-R1-Distill-Llama-70B via Akash Network for contextual recommendations
+- **Real-time Data**: Integrates Hong Kong government APIs for weather and venue information
+- **Personalized Itineraries**: Generates day-by-day plans with detailed explanations
+- **Export Options**: Multiple formats for offline use and sharing
 
-### 🍽️ Dietary Accommodation
-- **Soft meal options** perfect for seniors
-- **Vegetarian and dietary restriction** filtering
-- **Allergy-friendly** venue identification
-- **Cultural dietary needs** (halal, no seafood options)
+## Architecture 🏗️
 
-### 🤖 AI-Powered Intelligence
-- **Weather-responsive planning** adjusting indoor/outdoor activities
-- **Budget optimization** with senior and child discounts
-- **Route optimization** limiting walking distance and including rest stops
-- **Smart venue selection** based on accessibility requirements
+### LLM-Centric Design
+- **LLM Orchestrator**: Central intelligence layer using Akash Network
+- **Conversation Context**: Maintains chat history and user preferences
+- **Data Integration**: Combines real-time APIs with curated venue database
+- **Multi-format Export**: JSON, CSV, and printable formats
 
-### 📱 User-Friendly Interface
-- **Streamlit web app** with intuitive forms
-- **Real-time validation** and helpful guidance
-- **Multiple export formats** (CSV, JSON, printable)
-- **Mobile-responsive** design
+### Key Components
+- `main.py`: Streamlit chat interface
+- `services/llm_orchestrator.py`: AI conversation management
+- `config.py`: Configuration for Akash Network integration
+- `.kiro/specs/hk-travel-planner/`: Complete project specification
 
-## 🚀 Quick Start
+## Quick Start 🚀
 
 ### Prerequisites
-- Python 3.8+
-- pip package manager
+- Python 3.9+
+- Streamlit
+- OpenAI Python client
 
 ### Installation
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd hk-trip-planner
-   ```
-
-2. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Initialize the database**
-   ```bash
-   python3 database.py
-   ```
-
-4. **Run the application**
-   ```bash
-   streamlit run app.py
-   ```
-
-5. **Open your browser** to `http://localhost:8501`
-
-### Test the Components
+1. Clone the repository:
 ```bash
-python3 test_app.py
+git clone https://github.com/hilariali/hk-trip-planner.git
+cd hk-trip-planner
 ```
 
-## 🏗️ Architecture
+2. Install dependencies:
+```bash
+pip install streamlit openai
+```
 
-### Technology Stack
-- **Frontend**: Streamlit (Python web framework)
-- **Backend**: Python with SQLite database
-- **AI Integration**: Amazon Q Developer (planned)
-- **APIs**: Hong Kong government weather and transport data
-- **Deployment**: Streamlit Community Cloud (free hosting)
+3. Run the application:
+```bash
+streamlit run main.py
+```
 
-### Project Structure
+4. Open your browser to `http://localhost:8501`
+
+## Usage 💬
+
+1. **Start a Conversation**: Describe your Hong Kong travel plans in natural language
+2. **Specify Needs**: Mention accessibility requirements, dietary restrictions, budget, and group composition
+3. **Get Recommendations**: Receive AI-generated itineraries with detailed explanations
+4. **Refine Plans**: Ask questions and request modifications through chat
+5. **Export Itinerary**: Download your plan in multiple formats
+
+### Example Conversation
+```
+User: "I'm planning a 3-day Hong Kong trip for my elderly parents who use wheelchairs and prefer soft meals. Budget is around $200 per day."
+
+AI: "I'd be happy to help create an accessible Hong Kong itinerary for your parents! Let me design a 3-day plan focusing on wheelchair-accessible venues with elevator access and restaurants offering soft meal options..."
+```
+
+## Configuration ⚙️
+
+The application uses Akash Network for LLM services. Configuration is handled in `config.py`:
+
+```python
+llm_config = LLMConfig(
+    api_key="your-akash-api-key",
+    base_url="https://chatapi.akash.network/api/v1",
+    model="DeepSeek-R1-Distill-Llama-70B"
+)
+```
+
+## Project Structure 📁
+
 ```
 hk-trip-planner/
-├── app.py                 # Main Streamlit application
-├── models.py              # Data models and structures
-├── database.py            # Database setup and seeding
-├── requirements.txt       # Python dependencies
-├── .streamlit/
-│   └── secrets.toml      # API keys and configuration
+├── main.py                          # Streamlit chat interface
+├── config.py                        # Configuration settings
 ├── services/
-│   ├── venue_service.py   # Venue database operations
-│   ├── weather_service.py # Weather API integration
-│   └── itinerary_engine.py # AI itinerary generation
-└── test_app.py           # Component testing
+│   └── llm_orchestrator.py         # LLM integration
+├── .kiro/specs/hk-travel-planner/   # Project specifications
+│   ├── requirements.md              # Feature requirements
+│   ├── design.md                    # System design
+│   └── tasks.md                     # Implementation tasks
+├── data/                            # Venue and attraction data
+└── README.md                        # This file
 ```
 
-## 🎮 Usage
+## Development 🛠️
 
-### 1. Set Your Preferences
-- **Family composition**: Adults, children, seniors
-- **Accessibility needs**: Wheelchair, elevator requirements, stair avoidance
-- **Dietary restrictions**: Soft meals, vegetarian, allergies
-- **Budget range**: Per person daily budget in HKD
-- **Trip duration**: Number of days
-- **Transportation**: MTR, taxi, bus preferences
+### Specification-Driven Development
+This project follows a spec-driven approach with detailed documentation:
 
-### 2. Generate Your Itinerary
-- Click "Generate Itinerary" to create your personalized plan
-- AI considers weather, accessibility, and budget constraints
-- Maximum 3 venues per day to avoid fatigue
+- **Requirements**: User stories and acceptance criteria
+- **Design**: Architecture and component specifications  
+- **Tasks**: Step-by-step implementation plan
 
-### 3. Review and Export
-- View detailed day-by-day plans with accessibility information
-- See cost breakdowns and walking distances
-- Export as CSV or JSON for offline use
-- Print-friendly format available
+### Key Technologies
+- **Frontend**: Streamlit with chat interface
+- **AI**: DeepSeek-R1-Distill-Llama-70B via Akash Network
+- **Data**: Hong Kong government APIs + curated venue database
+- **Architecture**: Service-oriented with conversation context management
 
-## 🏥 Accessibility Features
+## Contributing 🤝
 
-### Venue Information
-- ♿ Wheelchair accessibility
-- 🛗 Elevator availability
-- 🚻 Accessible toilets
-- 🚶 Step-free access
-- 👶 Parent facilities
-- 🪑 Rest areas
-- 📊 Difficulty level (1-5 scale)
+1. Review the specifications in `.kiro/specs/hk-travel-planner/`
+2. Check the task list for current development priorities
+3. Follow the established patterns for LLM integration
+4. Ensure accessibility considerations in all features
 
-### Smart Filtering
-- **Automatic filtering** based on mobility needs
-- **Alternative suggestions** when requirements can't be met
-- **Transparent communication** about accessibility limitations
-- **Safety considerations** for children and seniors
+## Accessibility Focus ♿
 
-## 💰 Budget Features
+This application prioritizes accessibility for:
+- **Mobility**: Wheelchair access, elevator availability, step-free routes
+- **Dietary**: Soft meals, vegetarian options, allergy accommodations
+- **Safety**: Senior-friendly pacing, rest areas, clear navigation
+- **Budget**: Discount identification, transparent cost breakdowns
 
-### Cost Transparency
-- **Detailed cost breakdowns** by category
-- **Real-time budget validation** against preferences
-- **Senior and child discounts** automatically applied
-- **Transport cost estimation** included
+## License 📄
 
-### Hong Kong Pricing
-- **Realistic HKD pricing** for attractions and meals
-- **Local transport costs** (MTR, bus, taxi)
-- **Discount opportunities** clearly marked
+This project is open source and available under the MIT License.
 
-## 🌤️ Weather Integration
+## Support 💡
 
-### Smart Recommendations
-- **Real-time weather data** from Hong Kong Observatory
-- **Indoor/outdoor activity balancing** based on conditions
-- **Senior-friendly weather assessment** avoiding extremes
-- **Rainy day alternatives** automatically suggested
-
-## 🚀 Deployment
-
-### Streamlit Community Cloud (Recommended)
-
-#### Step 1: Push to GitHub
-```bash
-git add .
-git commit -m "Deploy SilverJoy Planner HK"
-git push origin main
-```
-
-#### Step 2: Deploy to Streamlit Cloud
-1. Go to [share.streamlit.io](https://share.streamlit.io)
-2. Sign in with GitHub
-3. Click "New app"
-4. Select your repository: `hk-trip-planner`
-5. Main file path: `app.py`
-6. Click "Deploy!"
-
-#### Step 3: Configure Secrets
-In Streamlit Cloud dashboard:
-1. Go to your app settings
-2. Click "Secrets"
-3. Add your secrets:
-```toml
-[ai]
-api_key = "sk-UVKYLhiNf0MKXRqbnDiehA"
-base_url = "https://chatapi.akash.network/api/v1"
-model = "Meta-Llama-3-1-8B-Instruct-FP8"
-```
-
-#### Step 4: Access Your App
-Your app will be available at: `https://your-app-name.streamlit.app`
-
-### Local Development
-```bash
-streamlit run app.py --server.port 8501
-```
-
-### Environment Setup
-```bash
-# Clone and setup
-git clone https://github.com/yourusername/hk-trip-planner.git
-cd hk-trip-planner
-pip install -r requirements.txt
-python database.py  # Initialize database
-streamlit run app.py
-```
-
-## 🔧 Configuration
-
-### API Keys (.streamlit/secrets.toml)
-```toml
-[weather]
-api_key = "your_weather_api_key"
-base_url = "https://data.weather.gov.hk/weatherAPI/opendata/"
-
-[transport]
-data_gov_hk_base = "https://api.data.gov.hk/v1/"
-
-[ai]
-amazon_q_key = "your_amazon_q_key"
-```
-
-## 📊 Sample Data
-
-The application includes sample Hong Kong venues:
-
-### Attractions
-- **Victoria Peak Sky Terrace** - Iconic views with accessibility features
-- **Hong Kong Space Museum** - Indoor, family-friendly with full accessibility
-- **Hong Kong Park** - Outdoor park with accessible paths
-
-### Restaurants
-- **Maxim's Palace Dim Sum** - Traditional dim sum with soft meal options
-- **Café de Coral** - Local chain with senior-friendly congee and soups
-
-### Transport
-- **Central MTR Station** - Major interchange with full accessibility
-
-## 🧪 Testing
-
-### Component Tests
-```bash
-python3 test_app.py
-```
-
-### Manual Testing Scenarios
-1. **Senior with mobility needs** - wheelchair, soft meals, budget-conscious
-2. **Family with children** - child-friendly venues, parent facilities
-3. **Rainy weather** - indoor activity preferences
-4. **Budget constraints** - maximum daily spending limits
-
-## 🔮 Future Enhancements
-
-### Phase 2 Features
-- **Real-time crowd density** integration
-- **User feedback loop** for venue recommendations
-- **Social sharing** and collaborative planning
-- **Mobile app** with offline capabilities
-
-### Advanced AI Features
-- **Machine learning** from user behavior patterns
-- **Predictive modeling** for optimal visit times
-- **Natural language processing** for venue reviews
-- **Computer vision** for accessibility assessment
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Submit a pull request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🆘 Support
-
-For questions or issues:
-1. Check the test script: `python3 test_app.py`
-2. Review the component logs in the Streamlit interface
-3. Verify API keys in `.streamlit/secrets.toml`
-
-## 🏆 Acknowledgments
-
-- **Hong Kong Observatory** for weather data APIs
-- **Hong Kong Government** for transport and venue data
-- **Streamlit Community** for the excellent web framework
-- **Accessibility advocates** who inspired this project's focus
+For questions about:
+- **Usage**: Check the conversation examples and feature documentation
+- **Development**: Review the specifications and task list
+- **Issues**: Open a GitHub issue with detailed description
 
 ---
 
-**Built with ❤️ for accessible travel in Hong Kong**
+Built with ❤️ for accessible travel in Hong Kong
