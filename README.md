@@ -151,14 +151,50 @@ hk-trip-planner/
 ## 🚀 Deployment
 
 ### Streamlit Community Cloud (Recommended)
-1. **Push to GitHub** repository
-2. **Connect to Streamlit Cloud** at share.streamlit.io
-3. **Upload secrets.toml** with API keys
-4. **Automatic deployment** with custom URL
+
+#### Step 1: Push to GitHub
+```bash
+git add .
+git commit -m "Deploy SilverJoy Planner HK"
+git push origin main
+```
+
+#### Step 2: Deploy to Streamlit Cloud
+1. Go to [share.streamlit.io](https://share.streamlit.io)
+2. Sign in with GitHub
+3. Click "New app"
+4. Select your repository: `hk-trip-planner`
+5. Main file path: `app.py`
+6. Click "Deploy!"
+
+#### Step 3: Configure Secrets
+In Streamlit Cloud dashboard:
+1. Go to your app settings
+2. Click "Secrets"
+3. Add your secrets:
+```toml
+[ai]
+api_key = "sk-UVKYLhiNf0MKXRqbnDiehA"
+base_url = "https://chatapi.akash.network/api/v1"
+model = "Meta-Llama-3-1-8B-Instruct-FP8"
+```
+
+#### Step 4: Access Your App
+Your app will be available at: `https://your-app-name.streamlit.app`
 
 ### Local Development
 ```bash
 streamlit run app.py --server.port 8501
+```
+
+### Environment Setup
+```bash
+# Clone and setup
+git clone https://github.com/yourusername/hk-trip-planner.git
+cd hk-trip-planner
+pip install -r requirements.txt
+python database.py  # Initialize database
+streamlit run app.py
 ```
 
 ## 🔧 Configuration
