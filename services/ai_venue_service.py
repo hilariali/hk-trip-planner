@@ -35,9 +35,9 @@ class AIVenueService:
         if not api_key:
             api_key = self._load_api_key_from_env()
         
-        # Fallback: Try hardcoded key for testing (will be removed after testing)
+        # Fallback: Use hardcoded key for simplicity
         if not api_key:
-            api_key = self._get_fallback_key()
+            api_key = self._get_hardcoded_key()
         
         if api_key:
             self._initialize_client(api_key)
@@ -553,3 +553,15 @@ IMPORTANT:
             "api_key_set": self.api_key is not None,
             "env_key_available": env_key is not None and len(env_key.strip()) > 0 if env_key else False
         }
+    
+    def _get_hardcoded_key(self) -> Optional[str]:
+        """Get hardcoded API key - replace with your actual key"""
+        # TODO: Replace this with your actual API key
+        hardcoded_key = "sk-your-api-key-here-replace-this-with-real-key"
+        
+        if hardcoded_key and hardcoded_key != "sk-your-api-key-here-replace-this-with-real-key":
+            logger.info(f"✅ Using hardcoded API key (length: {len(hardcoded_key)})")
+            return hardcoded_key
+        else:
+            logger.warning("Hardcoded API key not set - replace placeholder in _get_hardcoded_key method")
+            return None
