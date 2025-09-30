@@ -3,7 +3,6 @@ AI-Powered Venue Service for Hong Kong Trip Planner
 Uses LLM API to generate dynamic, contextual venue recommendations
 """
 
-import json
 import logging
 from typing import List, Dict, Optional
 from datetime import datetime
@@ -518,196 +517,13 @@ Focus on real Hong Kong locations that are wheelchair accessible and senior-frie
             logger.warning("Hardcoded API key not set - replace placeholder in _get_hardcoded_key method")
             return None    
 
-    def _fix_json_issues(self, json_content: str) -> str:
-        """Fix common JSON formatting issues"""
-        import re
-        
-        logger.info("Attempting to fix JSON formatting issues...")
-        
-        # Remove trailing commas before closing brackets/braces
-        json_content = re.sub(r',\s*]', ']', json_content)
-        json_content = re.sub(r',\s*}', '}', json_content)
-        
-        # Fix missing commas between objects/arrays
-        json_content = re.sub(r'}\s*{', '},{', json_content)
-        json_content = re.sub(r']\s*\[', '],[', json_content)
-        
-        # Fix missing commas between key-value pairs
-        json_content = re.sub(r'"\s*\n\s*"', '",\n    "', json_content)
-        json_content = re.sub(r'([0-9.])\s*\n\s*"', r'\1,\n    "', json_content)
-        json_content = re.sub(r'"\s*([a-zA-Z_])', r'", \1', json_content)
-        
-        # Fix missing quotes around string values that aren't already quoted
-        json_content = re.sub(r':\s*([a-zA-Z][a-zA-Z0-9_\s-]*[a-zA-Z0-9])\s*([,}])', r': "\1"\2', json_content)
-        
-        # Fix boolean values
-        json_content = re.sub(r':\s*True\b', ': true', json_content)
-        json_content = re.sub(r':\s*False\b', ': false', json_content)
-        json_content = re.sub(r':\s*None\b', ': null', json_content)
-        
-        # Fix single quotes to double quotes
-        json_content = re.sub(r"'([^']*)'", r'"\1"', json_content)
-        
-        # Remove any control characters that might break JSON
-        json_content = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', json_content)
-        
-        logger.info(f"Fixed JSON preview: {json_content[:200]}...")
-        return json_content
+    # JSON parsing methods removed - using smart text extraction instead
     
-    def _extract_venues_from_text(self, content: str) -> List[Dict]:
-        """Extract venue information from text when JSON parsing fails"""
-        logger.info("Extracting venues from text format")
-        
-        # Create fallback venues based on common Hong Kong attractions
-        fallback_venues = [
-            {
-                "id": "ai_text_1",
-                "name": "Victoria Peak Accessible Viewing Area",
-                "category": "attraction",
-                "description": "Panoramic city views with wheelchair accessible facilities and senior-friendly amenities.",
-                "district": "Central and Western",
-                "address": "The Peak, Hong Kong Island",
-                "latitude": 22.2711,
-                "longitude": 114.1489,
-                "cost_range": [65, 100],
-                "accessibility": {
-                    "wheelchair_accessible": True,
-                    "has_elevator": True,
-                    "accessible_toilets": True,
-                    "step_free_access": True,
-                    "notes": ["Peak Tram wheelchair accessible", "Elevator to Sky Terrace"]
-                },
-                "elderly_friendly": True,
-                "weather_suitability": "mixed"
-            },
-            {
-                "id": "ai_text_2", 
-                "name": "Accessible Dim Sum Restaurant",
-                "category": "restaurant",
-                "description": "Traditional Cantonese dim sum with soft meal options and wheelchair accessibility.",
-                "district": "Central",
-                "address": "Central District, Hong Kong Island",
-                "latitude": 22.2816,
-                "longitude": 114.1578,
-                "cost_range": [150, 300],
-                "accessibility": {
-                    "wheelchair_accessible": True,
-                    "has_elevator": True,
-                    "accessible_toilets": True,
-                    "step_free_access": True,
-                    "notes": ["Ground floor seating", "Soft steamed dishes available"]
-                },
-                "dietary_options": {
-                    "soft_meals": True,
-                    "vegetarian": True,
-                    "notes": ["Steamed dim sum", "Congee available"]
-                },
-                "elderly_friendly": True,
-                "weather_suitability": "indoor"
-            },
-            {
-                "id": "ai_text_3",
-                "name": "Hong Kong Cultural Museum (Accessible)",
-                "category": "museum", 
-                "description": "Interactive cultural exhibits with full accessibility features and senior discounts.",
-                "district": "Sha Tin",
-                "address": "1 Man Lam Road, Sha Tin, New Territories",
-                "latitude": 22.3817,
-                "longitude": 114.1878,
-                "cost_range": [10, 30],
-                "accessibility": {
-                    "wheelchair_accessible": True,
-                    "has_elevator": True,
-                    "accessible_toilets": True,
-                    "step_free_access": True,
-                    "notes": ["Audio guides available", "Wheelchair loans", "Senior discounts"]
-                },
-                "elderly_friendly": True,
-                "weather_suitability": "indoor"
-            }
-        ]
-        
-        logger.info(f"Generated {len(fallback_venues)} fallback venues from text extraction")
-        return fallback_venues
+    # Old text extraction method removed - using smart extraction instead
     
-    def _create_emergency_venues(self) -> List[Dict]:
-        """Create emergency venues when all parsing fails"""
-        logger.info("Creating emergency fallback venues")
-        
-        return [
-            {
-                "id": "emergency_1",
-                "name": "Victoria Peak (AI Recommended)",
-                "category": "attraction", 
-                "description": "AI-recommended accessible viewing point with panoramic Hong Kong views.",
-                "district": "Central and Western",
-                "latitude": 22.2711,
-                "longitude": 114.1489,
-                "cost_range": [50, 100],
-                "accessibility": {"wheelchair_accessible": True, "has_elevator": True},
-                "elderly_friendly": True,
-                "weather_suitability": "mixed"
-            },
-            {
-                "id": "emergency_2",
-                "name": "AI Dim Sum Restaurant",
-                "category": "restaurant",
-                "description": "AI-selected accessible restaurant with senior-friendly soft meal options.",
-                "district": "Central", 
-                "latitude": 22.2816,
-                "longitude": 114.1578,
-                "cost_range": [100, 250],
-                "accessibility": {"wheelchair_accessible": True, "has_elevator": True},
-                "dietary_options": {"soft_meals": True, "vegetarian": True},
-                "elderly_friendly": True,
-                "weather_suitability": "indoor"
-            }
-        ]   
+    # Emergency venues method removed - using guaranteed venues in smart extraction   
  
-    def _aggressive_json_repair(self, json_content: str) -> List[Dict]:
-        """Aggressively try to repair and parse JSON"""
-        import re
-        
-        logger.info("Attempting aggressive JSON repair...")
-        
-        try:
-            # Try to find individual venue objects and parse them separately
-            venue_objects = []
-            
-            # Find all potential venue objects (anything between { and })
-            object_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
-            potential_objects = re.findall(object_pattern, json_content)
-            
-            logger.info(f"Found {len(potential_objects)} potential venue objects")
-            
-            for i, obj_str in enumerate(potential_objects):
-                try:
-                    # Clean up the object string
-                    obj_str = obj_str.strip()
-                    
-                    # Apply basic fixes
-                    obj_str = self._fix_json_issues(obj_str)
-                    
-                    # Try to parse individual object
-                    venue_obj = json.loads(obj_str)
-                    
-                    # Basic validation
-                    if isinstance(venue_obj, dict) and 'name' in venue_obj:
-                        venue_objects.append(venue_obj)
-                        logger.info(f"Successfully parsed venue object {i+1}: {venue_obj.get('name', 'Unknown')}")
-                    
-                except Exception as e:
-                    logger.debug(f"Failed to parse object {i+1}: {str(e)}")
-                    continue
-            
-            if venue_objects:
-                logger.info(f"Successfully repaired {len(venue_objects)} venue objects")
-                return venue_objects
-            
-        except Exception as e:
-            logger.error(f"Aggressive JSON repair failed: {str(e)}")
-        
-        return []    
+    # Aggressive JSON repair removed - using smart text extraction instead    
 
     def _smart_extract_venues(self, content: str) -> List[Dict]:
         """Smart extraction of venues from AI response without JSON parsing"""
@@ -720,12 +536,15 @@ Focus on real Hong Kong locations that are wheelchair accessible and senior-frie
         # Try to extract venue names and basic info using patterns
         # Look for common patterns in AI responses
         
-        # Pattern 1: Look for venue names in quotes or after numbers
+        # Pattern 1: Look for venue names in various formats
         name_patterns = [
-            r'"name":\s*"([^"]+)"',
-            r"'name':\s*'([^']+)'",
-            r'\d+\.\s*([A-Z][^,\n]+(?:Restaurant|Museum|Park|Market|Temple|Peak|Ferry|Station|Centre|Center|Plaza|Square|Tower|Building))',
-            r'##?\s*([A-Z][^,\n]+(?:Restaurant|Museum|Park|Market|Temple|Peak|Ferry|Station|Centre|Center|Plaza|Square|Tower|Building))',
+            r'"name":\s*"([^"]+)"',  # JSON format
+            r"'name':\s*'([^']+)'",  # JSON with single quotes
+            r'\d+\.\s*([A-Z][^0-9\n]+?)(?=\s*\d+\.|$)',  # Numbered lists
+            r'##?\s*([A-Z][^\n]+)',  # Markdown headers
+            r'-\s*([A-Z][^\n-]+)',   # Bullet points
+            r'•\s*([A-Z][^\n•]+)',   # Bullet points with bullet
+            r'(?:^|\n)([A-Z][^:\n]+(?:Restaurant|Museum|Park|Market|Temple|Peak|Ferry|Station|Centre|Center|Plaza|Square|Tower|Building|Mall|Gallery))',  # Lines starting with venue names
         ]
         
         found_names = []
