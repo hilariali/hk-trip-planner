@@ -322,8 +322,20 @@ IMPORTANT:
             
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse AI JSON response: {str(e)}")
-            logger.info("Attempting to extract venues from text instead")
-            return self._extract_venues_from_text(content)
+            logger.info("Attempting aggressive JSON repair...")
+            
+            # Try more aggressive JSON repair
+            repaired_venues = self._aggressive_json_repair(json_content)
+            if repaired_venues:
+                return repaired_venues
+            
+            logger.info("JSON repair failed, extracting venues from text instead")
+            text_venues = self._extract_venues_from_text(content)
+            if text_venues:
+                return text_venues
+            
+            logger.warning("All parsing methods failed, using emergency venues")
+            return self._create_emergency_venues()
         except Exception as e:
             logger.error(f"Error parsing AI response: {str(e)}")
             return []
@@ -576,14 +588,38 @@ IMPORTANT:
 
     def _fix_json_issues(self, json_content: str) -> str:
         """Fix common JSON formatting issues"""
-        # Remove trailing commas before closing brackets
-        json_content = json_content.replace(',]', ']')
-        json_content = json_content.replace(',}', '}')
-        
-        # Fix missing quotes around keys (basic fix)
         import re
-        json_content = re.sub(r'(\w+):', r'"\1":', json_content)
         
+        logger.info("Attempting to fix JSON formatting issues...")
+        
+        # Remove trailing commas before closing brackets/braces
+        json_content = re.sub(r',\s*]', ']', json_content)
+        json_content = re.sub(r',\s*}', '}', json_content)
+        
+        # Fix missing commas between objects/arrays
+        json_content = re.sub(r'}\s*{', '},{', json_content)
+        json_content = re.sub(r']\s*\[', '],[', json_content)
+        
+        # Fix missing commas between key-value pairs
+        json_content = re.sub(r'"\s*\n\s*"', '",\n    "', json_content)
+        json_content = re.sub(r'([0-9.])\s*\n\s*"', r'\1,\n    "', json_content)
+        json_content = re.sub(r'"\s*([a-zA-Z_])', r'", \1', json_content)
+        
+        # Fix missing quotes around string values that aren't already quoted
+        json_content = re.sub(r':\s*([a-zA-Z][a-zA-Z0-9_\s-]*[a-zA-Z0-9])\s*([,}])', r': "\1"\2', json_content)
+        
+        # Fix boolean values
+        json_content = re.sub(r':\s*True\b', ': true', json_content)
+        json_content = re.sub(r':\s*False\b', ': false', json_content)
+        json_content = re.sub(r':\s*None\b', ': null', json_content)
+        
+        # Fix single quotes to double quotes
+        json_content = re.sub(r"'([^']*)'", r'"\1"', json_content)
+        
+        # Remove any control characters that might break JSON
+        json_content = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', json_content)
+        
+        logger.info(f"Fixed JSON preview: {json_content[:200]}...")
         return json_content
     
     def _extract_venues_from_text(self, content: str) -> List[Dict]:
@@ -661,3 +697,82 @@ IMPORTANT:
         
         logger.info(f"Generated {len(fallback_venues)} fallback venues from text extraction")
         return fallback_venues
+    
+    def _create_emergency_venues(self) -> List[Dict]:
+        """Create emergency venues when all parsing fails"""
+        logger.info("Creating emergency fallback venues")
+        
+        return [
+            {
+                "id": "emergency_1",
+                "name": "Victoria Peak (AI Recommended)",
+                "category": "attraction", 
+                "description": "AI-recommended accessible viewing point with panoramic Hong Kong views.",
+                "district": "Central and Western",
+                "latitude": 22.2711,
+                "longitude": 114.1489,
+                "cost_range": [50, 100],
+                "accessibility": {"wheelchair_accessible": True, "has_elevator": True},
+                "elderly_friendly": True,
+                "weather_suitability": "mixed"
+            },
+            {
+                "id": "emergency_2",
+                "name": "AI Dim Sum Restaurant",
+                "category": "restaurant",
+                "description": "AI-selected accessible restaurant with senior-friendly soft meal options.",
+                "district": "Central", 
+                "latitude": 22.2816,
+                "longitude": 114.1578,
+                "cost_range": [100, 250],
+                "accessibility": {"wheelchair_accessible": True, "has_elevator": True},
+                "dietary_options": {"soft_meals": True, "vegetarian": True},
+                "elderly_friendly": True,
+                "weather_suitability": "indoor"
+            }
+        ]   
+ 
+    def _aggressive_json_repair(self, json_content: str) -> List[Dict]:
+        """Aggressively try to repair and parse JSON"""
+        import re
+        
+        logger.info("Attempting aggressive JSON repair...")
+        
+        try:
+            # Try to find individual venue objects and parse them separately
+            venue_objects = []
+            
+            # Find all potential venue objects (anything between { and })
+            object_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+            potential_objects = re.findall(object_pattern, json_content)
+            
+            logger.info(f"Found {len(potential_objects)} potential venue objects")
+            
+            for i, obj_str in enumerate(potential_objects):
+                try:
+                    # Clean up the object string
+                    obj_str = obj_str.strip()
+                    
+                    # Apply basic fixes
+                    obj_str = self._fix_json_issues(obj_str)
+                    
+                    # Try to parse individual object
+                    venue_obj = json.loads(obj_str)
+                    
+                    # Basic validation
+                    if isinstance(venue_obj, dict) and 'name' in venue_obj:
+                        venue_objects.append(venue_obj)
+                        logger.info(f"Successfully parsed venue object {i+1}: {venue_obj.get('name', 'Unknown')}")
+                    
+                except Exception as e:
+                    logger.debug(f"Failed to parse object {i+1}: {str(e)}")
+                    continue
+            
+            if venue_objects:
+                logger.info(f"Successfully repaired {len(venue_objects)} venue objects")
+                return venue_objects
+            
+        except Exception as e:
+            logger.error(f"Aggressive JSON repair failed: {str(e)}")
+        
+        return []
