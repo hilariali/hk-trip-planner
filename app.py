@@ -263,6 +263,47 @@ def main():
                 - Real-time Transport Info
                 """)
             
+            # AI Configuration Panel
+            with st.expander("🤖 AI-Powered Recommendations", expanded=False):
+                st.markdown("**Enable AI-generated venue recommendations for personalized suggestions**")
+                
+                api_key = st.text_input(
+                    "AI API Key (Optional)", 
+                    type="password",
+                    help="Enter your API key to enable AI-powered venue recommendations"
+                )
+                
+                if st.button("Configure AI Service"):
+                    if api_key:
+                        try:
+                            st.session_state.venue_service.set_ai_api_key(api_key)
+                            st.success("✅ AI service configured successfully!")
+                            st.info("AI will now generate personalized venue recommendations based on your preferences.")
+                        except Exception as e:
+                            st.error(f"❌ AI configuration failed: {str(e)}")
+                    else:
+                        st.warning("Please enter an API key to configure AI service")
+                
+                # Test AI service
+                if st.button("Test AI Service"):
+                    try:
+                        from services.ai_venue_service import AIVenueService
+                        ai_service = AIVenueService()
+                        stats = ai_service.get_service_stats()
+                        
+                        st.json({
+                            "ai_version": stats["version"],
+                            "client_available": stats["client_available"],
+                            "api_key_configured": stats["api_key_set"],
+                            "cache_entries": stats["cache_entries"]
+                        })
+                        
+                        if not stats["client_available"]:
+                            st.info("💡 Configure API key above to enable AI recommendations")
+                        
+                    except Exception as e:
+                        st.error(f"❌ AI Test Failed: {str(e)}")
+            
             # Debug information (always show version info)
             with st.expander("🔍 System Information", expanded=False):
                 if st.button("Check API Status"):
@@ -404,8 +445,46 @@ def generate_itinerary(preferences: UserPreferences) -> Optional[Itinerary]:
         weather_data = st.session_state.weather_service.get_current_weather()
         logger.info(f"Weather data: {weather_data}")
         
-        # Generate itinerary using AI engine
-        logger.info("Calling itinerary engine...")
+        # Try AI-enhanced venue generation first
+        try:
+            preferences_dict = {
+                'family_composition': preferences.family_composition,
+                'mobility_needs': preferences.mobility_needs,
+                'dietary_restrictions': preferences.dietary_restrictions,
+                'budget_range': preferences.budget_range,
+                'trip_duration': preferences.trip_duration,
+                'transportation_preference': preferences.transportation_preference
+            }
+            
+            weather_dict = {
+                'temperature': weather_data.temperature,
+                'rainfall_probability': weather_data.rainfall_probability,
+                'weather_description': weather_data.weather_description
+            }
+            
+            # Get AI-enhanced venues
+            ai_venues = st.session_state.venue_service.get_ai_enhanced_venues(preferences_dict, weather_dict)
+            if ai_venues and len(ai_venues) > len(st.session_state.venue_service._get_offline_venues()):
+                logger.info(f"Using AI-enhanced venues: {len(ai_venues)} total")
+                # Temporarily override venue service venues for this generation
+                original_get_all = st.session_state.venue_service.get_all_venues
+                st.session_state.venue_service.get_all_venues = lambda: ai_venues
+                
+                # Generate itinerary with AI venues
+                itinerary = st.session_state.itinerary_engine.generate_itinerary(preferences, weather_data)
+                
+                # Restore original method
+                st.session_state.venue_service.get_all_venues = original_get_all
+                
+                if itinerary:
+                    logger.info("Successfully generated AI-enhanced itinerary")
+                    return itinerary
+            
+        except Exception as ai_e:
+            logger.info(f"AI enhancement not available, using standard generation: {str(ai_e)}")
+        
+        # Fallback to standard itinerary generation
+        logger.info("Calling standard itinerary engine...")
         itinerary = st.session_state.itinerary_engine.generate_itinerary(
             preferences, weather_data
         )

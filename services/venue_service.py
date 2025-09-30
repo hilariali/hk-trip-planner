@@ -23,7 +23,9 @@ class VenueService:
         self._hk_gov_service = None
         self._facilities_service = None
         self._offline_service = None
+        self._ai_service = None
         self._gov_data_cache = None
+        self._ai_data_cache = None
         self._last_update = None
     
     def _get_hk_gov_service(self):
@@ -48,6 +50,27 @@ class VenueService:
                 logger.warning(f"Could not import offline data service: {e}")
                 self._offline_service = None
         return self._offline_service
+    
+    def _get_ai_service(self):
+        """Get AI venue service with safe import"""
+        if self._ai_service is None:
+            try:
+                from .ai_venue_service import AIVenueService
+                self._ai_service = AIVenueService()
+                logger.info("AI venue service initialized successfully")
+            except ImportError as e:
+                logger.warning(f"Could not import AI venue service: {e}")
+                self._ai_service = None
+        return self._ai_service
+    
+    def set_ai_api_key(self, api_key: str):
+        """Set API key for AI venue service"""
+        ai_service = self._get_ai_service()
+        if ai_service:
+            ai_service.set_api_key(api_key)
+            logger.info("AI API key configured successfully")
+        else:
+            logger.warning("AI service not available for API key configuration")
     
     def _get_facilities_service(self):
         """Get facilities service with safe import"""
@@ -130,7 +153,7 @@ class VenueService:
             return None
     
     def get_all_venues(self) -> List[Venue]:
-        """Get all venues from offline data, database, and government APIs"""
+        """Get all venues from offline data, database, government APIs, and AI"""
         try:
             # Start with reliable offline data as foundation
             offline_venues = self._get_offline_venues()
@@ -146,9 +169,12 @@ class VenueService:
             # Enhance with government APIs (optional)
             gov_venues = self._get_government_venues()
             
+            # Add AI-generated venues (optional)
+            ai_venues = self._get_ai_venues()
+            
             # Combine all sources
-            all_venues = offline_venues + local_venues + gov_venues
-            logger.info(f"Retrieved {len(offline_venues)} offline + {len(local_venues)} local + {len(gov_venues)} government venues = {len(all_venues)} total")
+            all_venues = offline_venues + local_venues + gov_venues + ai_venues
+            logger.info(f"Retrieved {len(offline_venues)} offline + {len(local_venues)} local + {len(gov_venues)} government + {len(ai_venues)} AI venues = {len(all_venues)} total")
             
             return all_venues
             
@@ -156,6 +182,36 @@ class VenueService:
             logger.error(f"Error getting venues: {str(e)}")
             # Always return at least offline venues as reliable fallback
             return self._get_offline_venues()
+    
+    def get_ai_enhanced_venues(self, preferences: dict, weather_data: dict = None) -> List[Venue]:
+        """Get AI-generated venues based on user preferences"""
+        try:
+            ai_service = self._get_ai_service()
+            if not ai_service:
+                logger.info("AI service not available - using standard venues")
+                return self.get_all_venues()
+            
+            # Generate AI venues based on preferences
+            ai_venue_data = ai_service.generate_venues_for_preferences(preferences, weather_data)
+            
+            # Convert to Venue objects
+            ai_venues = []
+            for venue_data in ai_venue_data:
+                venue = self._convert_ai_data_to_venue(venue_data)
+                if venue:
+                    ai_venues.append(venue)
+            
+            # Combine with offline venues for reliability
+            offline_venues = self._get_offline_venues()
+            
+            all_venues = offline_venues + ai_venues
+            logger.info(f"Generated {len(ai_venues)} AI venues + {len(offline_venues)} offline venues = {len(all_venues)} total")
+            
+            return all_venues
+            
+        except Exception as e:
+            logger.error(f"Error getting AI-enhanced venues: {str(e)}")
+            return self.get_all_venues()
     
     def get_venues_by_category(self, category: VenueCategory) -> List[Venue]:
         """Get venues by category"""
@@ -353,3 +409,128 @@ class VenueService:
                 logger.warning(f"Could not initialize offline data service: {str(e)}")
                 return None
         return self._offline_service
+    
+    def _get_ai_venues(self) -> List[Venue]:
+        """Get AI-generated venues"""
+        try:
+            ai_service = self._get_ai_service()
+            if not ai_service:
+                return []
+            
+            # Use cached AI venues if available
+            if self._ai_data_cache:
+                logger.info("Using cached AI venues")
+                return self._ai_data_cache
+            
+            # Generate basic AI venues (no specific preferences)
+            basic_preferences = {
+                'family_composition': {'adults': 2, 'children': 0, 'seniors': 1},
+                'mobility_needs': ['wheelchair'],
+                'dietary_restrictions': ['soft_meals'],
+                'budget_range': (200, 800),
+                'trip_duration': 3
+            }
+            
+            ai_venue_data = ai_service.generate_venues_for_preferences(basic_preferences)
+            
+            # Convert to Venue objects
+            ai_venues = []
+            for venue_data in ai_venue_data:
+                venue = self._convert_ai_data_to_venue(venue_data)
+                if venue:
+                    ai_venues.append(venue)
+            
+            # Cache the results
+            self._ai_data_cache = ai_venues
+            logger.info(f"Generated and cached {len(ai_venues)} AI venues")
+            
+            return ai_venues
+            
+        except Exception as e:
+            logger.warning(f"Error generating AI venues: {str(e)}")
+            return []
+    
+    def _convert_ai_data_to_venue(self, ai_data: dict) -> Optional[Venue]:
+        """Convert AI-generated data to Venue object"""
+        try:
+            # Create location
+            location = Location(
+                latitude=ai_data.get('latitude', 22.3),
+                longitude=ai_data.get('longitude', 114.2),
+                address=ai_data.get('address', ''),
+                district=ai_data.get('district', '')
+            )
+            
+            # Create accessibility info
+            accessibility_data = ai_data.get('accessibility', {})
+            accessibility = AccessibilityInfo(
+                has_elevator=accessibility_data.get('has_elevator', False),
+                wheelchair_accessible=accessibility_data.get('wheelchair_accessible', False),
+                accessible_toilets=accessibility_data.get('accessible_toilets', False),
+                step_free_access=accessibility_data.get('step_free_access', False),
+                parent_facilities=False,
+                rest_areas=True,
+                difficulty_level=1 if accessibility_data.get('wheelchair_accessible') else 2,
+                accessibility_notes=accessibility_data.get('notes', [])
+            )
+            
+            # Create dietary options
+            dietary_data = ai_data.get('dietary_options', {})
+            dietary_options = DietaryOption(
+                soft_meals=dietary_data.get('soft_meals', False),
+                vegetarian=dietary_data.get('vegetarian', False),
+                halal=dietary_data.get('halal', False),
+                no_seafood=dietary_data.get('no_seafood', False),
+                allergy_friendly=False,
+                dietary_notes=dietary_data.get('notes', [])
+            )
+            
+            # Map category
+            category_mapping = {
+                'attraction': VenueCategory.ATTRACTION,
+                'restaurant': VenueCategory.RESTAURANT,
+                'transport': VenueCategory.TRANSPORT,
+                'shopping': VenueCategory.SHOPPING,
+                'park': VenueCategory.PARK,
+                'museum': VenueCategory.MUSEUM
+            }
+            
+            category = category_mapping.get(ai_data.get('category', 'attraction'), VenueCategory.ATTRACTION)
+            
+            # Map weather suitability
+            weather_map = {
+                'indoor': WeatherSuitability.INDOOR,
+                'outdoor': WeatherSuitability.OUTDOOR,
+                'mixed': WeatherSuitability.MIXED
+            }
+            
+            weather_suitability = weather_map.get(
+                ai_data.get('weather_suitability', 'mixed'), 
+                WeatherSuitability.MIXED
+            )
+            
+            # Get cost range
+            cost_range = ai_data.get('cost_range', [0, 100])
+            if not isinstance(cost_range, (list, tuple)) or len(cost_range) != 2:
+                cost_range = [0, 100]
+            
+            return Venue(
+                id=ai_data.get('id', f"ai_{hash(ai_data.get('name', 'unknown'))}"),
+                name=ai_data.get('name', 'AI Generated Venue'),
+                category=category,
+                location=location,
+                accessibility=accessibility,
+                dietary_options=dietary_options,
+                cost_range=tuple(cost_range),
+                opening_hours=ai_data.get('opening_hours', {}),
+                weather_suitability=weather_suitability,
+                description=ai_data.get('description', ''),
+                phone=ai_data.get('phone', ''),
+                website=ai_data.get('website', ''),
+                elderly_discount=ai_data.get('elderly_friendly', False),
+                child_discount=False
+            )
+            
+        except Exception as e:
+            logger.warning(f"Error converting AI venue data: {str(e)}")
+            return None
