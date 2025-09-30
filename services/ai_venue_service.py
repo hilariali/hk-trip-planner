@@ -31,6 +31,10 @@ class AIVenueService:
         self._cache = {}
         self._cache_expiry = {}
         
+        # Try to load API key from environment if not provided
+        if not api_key:
+            api_key = self._load_api_key_from_env()
+        
         if api_key:
             self._initialize_client(api_key)
         
@@ -395,11 +399,52 @@ IMPORTANT:
             }
         ]
     
+    def _load_api_key_from_env(self) -> Optional[str]:
+        """Load API key from environment variables or Streamlit secrets"""
+        # Try Streamlit secrets first
+        try:
+            import streamlit as st
+            if hasattr(st, 'secrets') and 'ai' in st.secrets:
+                api_key = st.secrets.ai.get('api_key')
+                if api_key:
+                    logger.info("API key loaded from Streamlit secrets")
+                    return api_key
+        except Exception as e:
+            logger.debug(f"Could not load from Streamlit secrets: {str(e)}")
+        
+        # Try environment variables
+        try:
+            import os
+            from dotenv import load_dotenv
+            
+            # Load .env file if it exists
+            load_dotenv()
+            
+            api_key = os.getenv('AI_API_KEY')
+            if api_key:
+                logger.info("API key loaded from environment")
+                return api_key
+            
+            # Also check for OpenAI key as fallback
+            openai_key = os.getenv('OPENAI_API_KEY')
+            if openai_key:
+                logger.info("Using OpenAI API key from environment")
+                return openai_key
+                
+        except ImportError:
+            logger.debug("python-dotenv not available, skipping .env file")
+        except Exception as e:
+            logger.debug(f"Could not load API key from environment: {str(e)}")
+        
+        return None
+    
     def get_service_stats(self) -> Dict:
         """Get AI service statistics"""
+        env_key = self._load_api_key_from_env()
         return {
             "version": self.version,
             "client_available": self.client is not None,
             "cache_entries": len(self._cache),
-            "api_key_set": self.api_key is not None
+            "api_key_set": self.api_key is not None,
+            "env_key_available": env_key is not None and len(env_key.strip()) > 0 if env_key else False
         }
