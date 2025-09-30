@@ -185,32 +185,44 @@ class VenueService:
     
     def get_ai_enhanced_venues(self, preferences: dict, weather_data: dict = None) -> List[Venue]:
         """Get AI-generated venues based on user preferences"""
+        logger.info("=== GETTING AI-ENHANCED VENUES ===")
+        logger.info(f"Preferences: {preferences}")
+        logger.info(f"Weather data: {weather_data}")
+        
         try:
             ai_service = self._get_ai_service()
             if not ai_service:
-                logger.info("AI service not available - using standard venues")
+                logger.warning("AI service not available - using standard venues")
                 return self.get_all_venues()
+            
+            logger.info("✅ AI service available, generating venues...")
             
             # Generate AI venues based on preferences
             ai_venue_data = ai_service.generate_venues_for_preferences(preferences, weather_data)
+            logger.info(f"Received {len(ai_venue_data)} AI venue data items")
             
             # Convert to Venue objects
             ai_venues = []
-            for venue_data in ai_venue_data:
+            for i, venue_data in enumerate(ai_venue_data):
+                logger.info(f"Converting AI venue {i+1}: {venue_data.get('name', 'Unknown')}")
                 venue = self._convert_ai_data_to_venue(venue_data)
                 if venue:
                     ai_venues.append(venue)
+                    logger.info(f"✅ Successfully converted venue: {venue.name}")
+                else:
+                    logger.warning(f"❌ Failed to convert venue data: {venue_data}")
             
             # Combine with offline venues for reliability
             offline_venues = self._get_offline_venues()
             
             all_venues = offline_venues + ai_venues
-            logger.info(f"Generated {len(ai_venues)} AI venues + {len(offline_venues)} offline venues = {len(all_venues)} total")
+            logger.info(f"✅ Final result: {len(ai_venues)} AI venues + {len(offline_venues)} offline venues = {len(all_venues)} total")
             
             return all_venues
             
         except Exception as e:
-            logger.error(f"Error getting AI-enhanced venues: {str(e)}")
+            logger.error(f"❌ Error getting AI-enhanced venues: {str(e)}", exc_info=True)
+            logger.info("Falling back to standard venues")
             return self.get_all_venues()
     
     def get_venues_by_category(self, category: VenueCategory) -> List[Venue]:

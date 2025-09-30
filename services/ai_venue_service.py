@@ -42,19 +42,41 @@ class AIVenueService:
     
     def _initialize_client(self, api_key: str):
         """Initialize OpenAI client with custom endpoint"""
+        logger.info("=== INITIALIZING AI CLIENT ===")
+        
         if not OPENAI_AVAILABLE:
-            logger.warning("OpenAI library not available - install with: pip install openai")
+            logger.error("❌ OpenAI library not available - install with: pip install openai")
+            self.client = None
+            return
+        
+        logger.info("✅ OpenAI library is available")
+        
+        if not api_key or not api_key.strip():
+            logger.error("❌ API key is empty or None")
             self.client = None
             return
             
         try:
+            logger.info(f"Initializing OpenAI client with key length: {len(api_key)}")
+            logger.info("Using base URL: https://chatapi.akash.network/api/v1")
+            
             self.client = openai.OpenAI(
                 api_key=api_key,
                 base_url="https://chatapi.akash.network/api/v1"
             )
-            logger.info("AI client initialized successfully")
+            
+            logger.info("✅ AI client initialized successfully")
+            
+            # Test the client with a simple request
+            try:
+                logger.info("Testing AI client connection...")
+                # We'll test this in the venue generation method
+                logger.info("✅ AI client ready for requests")
+            except Exception as test_e:
+                logger.warning(f"AI client test failed: {str(test_e)}")
+                
         except Exception as e:
-            logger.error(f"Failed to initialize AI client: {str(e)}")
+            logger.error(f"❌ Failed to initialize AI client: {str(e)}", exc_info=True)
             self.client = None
     
     def set_api_key(self, api_key: str):
@@ -64,21 +86,32 @@ class AIVenueService:
     
     def generate_venues_for_preferences(self, preferences: Dict, weather_data: Dict = None) -> List[Dict]:
         """Generate venue recommendations based on user preferences"""
+        logger.info("=== GENERATING AI VENUES ===")
+        logger.info(f"Preferences: {preferences}")
+        logger.info(f"Weather data: {weather_data}")
+        
         if not self.client:
-            logger.warning("AI client not available - using fallback data")
+            logger.warning("❌ AI client not available - using fallback data")
             return self._get_fallback_venues()
+        
+        logger.info("✅ AI client is available, proceeding with generation")
         
         try:
             # Create context-aware prompt
             prompt = self._create_venue_prompt(preferences, weather_data)
+            logger.info(f"Generated prompt (length: {len(prompt)}): {prompt[:200]}...")
             
             # Check cache first
             cache_key = self._get_cache_key(prompt)
             if self._is_cache_valid(cache_key):
-                logger.info("Using cached AI venue recommendations")
+                logger.info("✅ Using cached AI venue recommendations")
                 return self._cache[cache_key]
             
+            logger.info("No valid cache found, making API request...")
+            
             # Generate new recommendations
+            logger.info("Calling OpenAI API with model: Meta-Llama-3-1-8B-Instruct-FP8")
+            
             response = self.client.chat.completions.create(
                 model="Meta-Llama-3-1-8B-Instruct-FP8",
                 messages=[
@@ -95,19 +128,26 @@ class AIVenueService:
                 max_tokens=2000
             )
             
+            logger.info("✅ Received response from AI API")
+            
             # Parse AI response
             ai_content = response.choices[0].message.content
+            logger.info(f"AI response length: {len(ai_content)}")
+            logger.info(f"AI response preview: {ai_content[:300]}...")
+            
             venues = self._parse_ai_response(ai_content)
+            logger.info(f"Parsed {len(venues)} venues from AI response")
             
             # Cache the results
             self._cache[cache_key] = venues
             self._cache_expiry[cache_key] = datetime.now().timestamp() + 3600  # 1 hour cache
             
-            logger.info(f"Generated {len(venues)} AI venue recommendations")
+            logger.info(f"✅ Successfully generated {len(venues)} AI venue recommendations")
             return venues
             
         except Exception as e:
-            logger.error(f"AI venue generation failed: {str(e)}")
+            logger.error(f"❌ AI venue generation failed: {str(e)}", exc_info=True)
+            logger.info("Falling back to curated venues")
             return self._get_fallback_venues()
     
     def generate_contextual_attractions(self, district: str = None, interests: List[str] = None) -> List[Dict]:
@@ -401,41 +441,66 @@ IMPORTANT:
     
     def _load_api_key_from_env(self) -> Optional[str]:
         """Load API key from environment variables or Streamlit secrets"""
+        logger.info("=== ATTEMPTING TO LOAD API KEY ===")
+        
         # Try Streamlit secrets first
         try:
             import streamlit as st
-            if hasattr(st, 'secrets') and 'ai' in st.secrets:
-                api_key = st.secrets.ai.get('api_key')
-                if api_key:
-                    logger.info("API key loaded from Streamlit secrets")
-                    return api_key
+            logger.info("Streamlit module imported successfully")
+            
+            if hasattr(st, 'secrets'):
+                logger.info("Streamlit secrets attribute found")
+                
+                if 'ai' in st.secrets:
+                    logger.info("AI section found in Streamlit secrets")
+                    
+                    api_key = st.secrets.ai.get('api_key')
+                    if api_key and api_key.strip() and api_key != "your-api-key-here":
+                        logger.info(f"✅ API key loaded from Streamlit secrets (length: {len(api_key)})")
+                        return api_key
+                    else:
+                        logger.warning("API key in secrets is empty or placeholder")
+                else:
+                    logger.warning("No 'ai' section found in Streamlit secrets")
+            else:
+                logger.warning("Streamlit secrets not available")
+                
+        except ImportError:
+            logger.warning("Streamlit not available (not running in Streamlit context)")
         except Exception as e:
-            logger.debug(f"Could not load from Streamlit secrets: {str(e)}")
+            logger.error(f"Error accessing Streamlit secrets: {str(e)}", exc_info=True)
         
         # Try environment variables
         try:
             import os
-            from dotenv import load_dotenv
+            logger.info("Checking environment variables...")
             
-            # Load .env file if it exists
-            load_dotenv()
+            try:
+                from dotenv import load_dotenv
+                load_dotenv()
+                logger.info("Loaded .env file")
+            except ImportError:
+                logger.info("python-dotenv not available, checking system env vars only")
             
             api_key = os.getenv('AI_API_KEY')
-            if api_key:
-                logger.info("API key loaded from environment")
+            if api_key and api_key.strip():
+                logger.info(f"✅ API key loaded from AI_API_KEY environment variable (length: {len(api_key)})")
                 return api_key
+            else:
+                logger.info("AI_API_KEY environment variable not set or empty")
             
             # Also check for OpenAI key as fallback
             openai_key = os.getenv('OPENAI_API_KEY')
-            if openai_key:
-                logger.info("Using OpenAI API key from environment")
+            if openai_key and openai_key.strip():
+                logger.info(f"✅ Using OpenAI API key from environment (length: {len(openai_key)})")
                 return openai_key
+            else:
+                logger.info("OPENAI_API_KEY environment variable not set or empty")
                 
-        except ImportError:
-            logger.debug("python-dotenv not available, skipping .env file")
         except Exception as e:
-            logger.debug(f"Could not load API key from environment: {str(e)}")
+            logger.error(f"Error checking environment variables: {str(e)}", exc_info=True)
         
+        logger.warning("❌ No API key found in any source")
         return None
     
     def get_service_stats(self) -> Dict:
