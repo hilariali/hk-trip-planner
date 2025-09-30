@@ -451,17 +451,35 @@ IMPORTANT:
             if hasattr(st, 'secrets'):
                 logger.info("Streamlit secrets attribute found")
                 
-                if 'ai' in st.secrets:
-                    logger.info("AI section found in Streamlit secrets")
-                    
-                    api_key = st.secrets.ai.get('api_key')
-                    if api_key and api_key.strip() and api_key != "your-api-key-here":
-                        logger.info(f"✅ API key loaded from Streamlit secrets (length: {len(api_key)})")
-                        return api_key
-                    else:
-                        logger.warning("API key in secrets is empty or placeholder")
-                else:
-                    logger.warning("No 'ai' section found in Streamlit secrets")
+                # Debug: Show all available secret sections
+                try:
+                    available_sections = list(st.secrets.keys())
+                    logger.info(f"Available secret sections: {available_sections}")
+                except Exception as e:
+                    logger.warning(f"Could not list secret sections: {str(e)}")
+                
+                # Try different possible section names
+                possible_sections = ['ai', 'AI', 'openai', 'OPENAI']
+                
+                for section_name in possible_sections:
+                    if section_name in st.secrets:
+                        logger.info(f"Found section '{section_name}' in Streamlit secrets")
+                        
+                        section = st.secrets[section_name]
+                        
+                        # Try different possible key names
+                        possible_keys = ['api_key', 'API_KEY', 'key', 'openai_api_key']
+                        
+                        for key_name in possible_keys:
+                            if key_name in section:
+                                api_key = section[key_name]
+                                if api_key and api_key.strip() and api_key != "your-api-key-here":
+                                    logger.info(f"✅ API key loaded from Streamlit secrets [{section_name}.{key_name}] (length: {len(api_key)})")
+                                    return api_key
+                                else:
+                                    logger.warning(f"API key in [{section_name}.{key_name}] is empty or placeholder")
+                
+                logger.warning("No valid API key found in any Streamlit secrets section")
             else:
                 logger.warning("Streamlit secrets not available")
                 
